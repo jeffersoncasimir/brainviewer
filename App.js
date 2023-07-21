@@ -1,8 +1,14 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
-import React, {useState, useEffect} from 'react';
-import { hdf5Loader } from './MincLoader';
-import { Viewer } from './Viewer';
+import {StatusBar} from 'expo-status-bar';
+import {ScrollView, StyleSheet} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {hdf5Loader} from './MincLoader';
+import {Viewer} from './Viewer';
+import {Login} from './Login';
+import * as SecureStore from 'expo-secure-store';
+
+async function getValueFor(key) {
+  return await SecureStore.getItemAsync(key);
+}
 
 export default function App() {
   const [token, setToken] = useState(null);
@@ -11,26 +17,13 @@ export default function App() {
   const [headerData, setHeaderData] = useState(null);
 
   useEffect(() => {
-    // Get API key
-    var loginData = {
-      username : '', // username
-      password : '', // password
-    };
-    fetch('https://demo-25-0.loris.ca/api/v0.0.3/login/', {
-      method: 'POST',
-      body: JSON.stringify(loginData),
-      headers: {
-        'Content-type': 'application/json; charset=UTF-8',
-      },
-    })
-    .then((response) => response.json())
-    .then((data) => {
-      setToken(data.token);
-    })
-    .catch((err) => {
-      console.log(err.message);
+    if (token)
+      return;
+    getValueFor('loris_token').then((lorisToken) => {
+      if (lorisToken)
+        setToken(lorisToken);
     });
-  }, []);
+  }, [token])
 
   useEffect(() => {
     // Get file from LORIS
@@ -50,6 +43,14 @@ export default function App() {
     req.send(null);
   }, [token]);
 
+  if (!token) {
+    return (
+        <Login
+            token={token}
+            setToken={setToken}
+        />
+    )
+  }
   return (
     <ScrollView style={styles.container}>
       <Text></Text>
