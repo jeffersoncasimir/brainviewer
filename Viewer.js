@@ -148,8 +148,8 @@ export class Viewer extends React.Component {
                             const scaledY = nativeEvent.locationX / viewWidth;
                             const scaledZ = nativeEvent.locationY / viewHeight;
                             this.setState({
-                                yVal: scaledY * ysize,
-                                zVal: scaledZ * zsize,
+                                yVal: Math.round(scaledY * ysize),
+                                zVal: Math.round(scaledZ * zsize),
                             });
                             console.log(nativeEvent.locationY, nativeEvent.locationZ, scaledY, scaledZ);
                             requestAnimationFrame(() => this.drawPanel('x'));
@@ -175,8 +175,8 @@ export class Viewer extends React.Component {
                             const scaledX = nativeEvent.locationX / viewWidth;
                             const scaledZ = nativeEvent.locationY / viewHeight;
                             this.setState({
-                                xVal: scaledX * xsize,
-                                zVal: scaledZ * zsize,
+                                xVal: Math.round(scaledX * xsize),
+                                zVal: Math.round(scaledZ * zsize),
                             });
                             console.log(nativeEvent.locationX, nativeEvent.locationZ, scaledX, scaledZ);
                             requestAnimationFrame(() => this.drawPanel('x'));
@@ -202,8 +202,8 @@ export class Viewer extends React.Component {
                             const scaledX = nativeEvent.locationX / viewWidth;
                             const scaledY = nativeEvent.locationY / viewHeight;
                             this.setState({
-                                xVal: scaledX * xsize,
-                                yVal: scaledY * ysize,
+                                xVal: Math.round(scaledX * xsize),
+                                yVal: Math.round(scaledY * ysize),
                             });
                             console.log(nativeEvent.locationX, nativeEvent.locationY, scaledX, scaledY);
                             requestAnimationFrame(() => this.drawPanel('x'));
