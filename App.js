@@ -52,8 +52,29 @@ export default function App() {
 
   return (
     <ScrollView style={styles.container}>
+      <Text></Text>
+      <Text> </Text>
+      <Text> </Text>
+      <Text> </Text>
+      <View >
+        <Text style={{
+          textAlign: "center", fontSize: 25
+        }}>
+        Welcome to our Mobile Native BrainViewer!
+        </Text>
+      </View>
+      <View >
+        <Text style={{
+          textAlign: "center", fontSize: 15
+        }}>
+        By Dave MacFarlane, Camille Beaudoin, and Jefferson Casimir
+        </Text>
+      </View>
+      <Text> </Text>
       <Viewer rawData={rawData} headers={headerData} />
       <StatusBar style="auto" />
+      <Text></Text>
+      <Text></Text>
     </ScrollView>
   );
 }

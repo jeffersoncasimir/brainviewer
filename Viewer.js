@@ -164,7 +164,7 @@ export class Viewer extends React.Component {
                   val={this.state.xVal}
                   valName={'xVal'}
                   max={maxValX}
-                  label='X Segment:'
+                  label='Sagittal:'
                   onSliderChange={this.handleSliderChange}
                 />
                 <View style={{width: 350, height: 400, backgroundColor: 'pink'}}>
@@ -191,7 +191,7 @@ export class Viewer extends React.Component {
                   val={this.state.yVal}
                   valName={'yVal'}
                   max={maxValY}
-                  label='Y Segment:'
+                  label='Coronal:'
                   onSliderChange={this.handleSliderChange}
                 />
                 <View style={{width: 350, height: 400, backgroundColor: 'pink'}}>
@@ -218,7 +218,7 @@ export class Viewer extends React.Component {
                   val={this.state.zVal}
                   valName={'zVal'}
                   max={maxValZ}
-                  label='Z Segment:'
+                  label='Axial:'
                   onSliderChange={this.handleSliderChange}
                 />
                 </View>
