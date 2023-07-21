@@ -1,5 +1,5 @@
 import {StatusBar} from 'expo-status-bar';
-import {ScrollView, StyleSheet} from 'react-native';
+import {StyleSheet, View, Text, ScrollView} from 'react-native';
 import React, {useEffect, useState} from 'react';
 import {hdf5Loader} from './MincLoader';
 import {Viewer} from './Viewer';
