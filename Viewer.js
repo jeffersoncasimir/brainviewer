@@ -30,14 +30,35 @@ export class Viewer extends React.Component {
         this.onContextCreateZ = this.onContextCreateZ.bind(this);
     }
 
-    handleSliderChange = (plane, newValue) => {
-        const newState = {};
-        newState[plane] = newValue;
-        this.setState(newState);
+    refreshAllPanels = () => {
+        this.populateWorldPosAttribute(
+              this.state.glX,
+              this.state.worldPositionAttributeLocationX,
+              'x',
+              this.state.worldPosBufferX,
+        );
+        this.populateWorldPosAttribute(
+              this.state.glY,
+              this.state.worldPositionAttributeLocationY,
+              'y',
+              this.state.worldPosBufferY,
+        );
+        this.populateWorldPosAttribute(
+              this.state.glZ,
+              this.state.worldPositionAttributeLocationZ,
+              'z',
+              this.state.worldPosBufferZ,
+        );
 
         requestAnimationFrame(() => this.drawPanel('x'));
         requestAnimationFrame(() => this.drawPanel('y'));
         requestAnimationFrame(() => this.drawPanel('z'));
+    }
+    handleSliderChange = (plane, newValue) => {
+        const newState = {};
+        newState[plane] = newValue;
+        this.setState(newState);
+        this.refreshAllPanels();
     };
 
     drawPanel = (plane) => {
@@ -46,34 +67,16 @@ export class Viewer extends React.Component {
       const zsize = this.props.headers.zspace.space_length;
       switch (plane) {
         case 'x':
-          this.populateWorldPosAttribute(
-              this.state.glX,
-              this.state.worldPositionAttributeLocationX,
-              plane,
-              this.state.worldPosBufferY,
-          );
           this.state.glX.drawArrays(this.state.glX.POINTS, 0, ysize*zsize);
           this.state.glX.flush();
           this.state.glX.endFrameEXP();
           break;
         case 'y':
-          this.populateWorldPosAttribute(
-              this.state.glY,
-              this.state.worldPositionAttributeLocationY,
-              plane,
-              this.state.worldPosBufferY,
-          );
           this.state.glY.drawArrays(this.state.glY.POINTS, 0, xsize*zsize);
           this.state.glY.flush();
           this.state.glY.endFrameEXP();
           break;
         case 'z':
-          this.populateWorldPosAttribute(
-              this.state.glZ,
-              this.state.worldPositionAttributeLocationZ,
-              plane,
-              this.state.worldPosBufferZ,
-          );
           this.state.glZ.drawArrays(this.state.glZ.POINTS, 0, xsize*ysize);
           this.state.glZ.flush();
           this.state.glZ.endFrameEXP();
@@ -123,9 +126,7 @@ export class Viewer extends React.Component {
                                 zVal: Math.round(scaledZ * zsize),
                             });
                             console.log(nativeEvent.locationY, nativeEvent.locationZ, scaledY, scaledZ);
-                            requestAnimationFrame(() => this.drawPanel('x'));
-                            requestAnimationFrame(() => this.drawPanel('y'));
-                            requestAnimationFrame(() => this.drawPanel('z'));
+                            this.refreshAllPanels();
                         }
                     }>
                     <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateX} />
@@ -149,10 +150,7 @@ export class Viewer extends React.Component {
                                 xVal: Math.round(scaledX * xsize),
                                 zVal: Math.round(scaledZ * zsize),
                             });
-                            console.log(nativeEvent.locationX, nativeEvent.locationZ, scaledX, scaledZ);
-                            requestAnimationFrame(() => this.drawPanel('x'));
-                            requestAnimationFrame(() => this.drawPanel('y'));
-                            requestAnimationFrame(() => this.drawPanel('z'));
+                            this.refreshAllPanels();
                         }
                     }>
                     <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateY} />
@@ -176,10 +174,7 @@ export class Viewer extends React.Component {
                                 xVal: Math.round(scaledX * xsize),
                                 yVal: Math.round(scaledY * ysize),
                             });
-                            console.log(nativeEvent.locationX, nativeEvent.locationY, scaledX, scaledY);
-                            requestAnimationFrame(() => this.drawPanel('x'));
-                            requestAnimationFrame(() => this.drawPanel('y'));
-                            requestAnimationFrame(() => this.drawPanel('z'));
+                            this.refreshAllPanels();
                         }
                     }>
                     <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateZ} />
