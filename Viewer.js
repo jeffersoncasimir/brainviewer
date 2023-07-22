@@ -45,21 +45,17 @@ export class Viewer extends React.Component {
       const ysize = this.props.headers.yspace.space_length;
       const zsize = this.props.headers.zspace.space_length;
       const intensities = [];
-      let colorUniformLocation;
+      let intensityUniformLocation;
       switch (plane) {
         case 'x':
-          colorUniformLocation = this.state.colorUniformLocationX; 
+          intensityUniformLocation = this.state.intensityUniformLocationX; 
           for (let y = 0; y < ysize; y++) {
             for(let z = 0; z < zsize; z++) {
               const i = y*zsize + z;
+              // FIXME: Put the raw values on the GPU and do the lookup
+              // of the value there.
               const intensity = this.arrayValue(this.state.xVal, y, z);
-              // FIXME: Do this math in the shader.
-              const val = (intensity-this.state.data.min) / (this.state.data.max-this.state.data.min);
-              if (y === Math.round(this.state.yVal) || z == Math.round(this.state.zVal)) {
-                  this.state.glX.uniform4f(colorUniformLocation, 1.0, 0.0, 0.0, 1);
-              } else {
-                  this.state.glX.uniform4f(colorUniformLocation, val, val, val, 1);
-              }
+              this.state.glX.uniform1f(intensityUniformLocation, intensity);
 
               this.state.glX.drawArrays(this.state.glX.POINTS, i, 1);
             }
@@ -68,18 +64,14 @@ export class Viewer extends React.Component {
           this.state.glX.endFrameEXP();
           break;
         case 'y':
-          colorUniformLocation = this.state.colorUniformLocationY; 
+          intensityUniformLocation = this.state.intensityUniformLocationY; 
           for (let x = 0; x < xsize; x++) {
             for(let z = 0; z < zsize; z++) {
+              // FIXME: Put the raw values on the GPU and do the lookup
+              // of the value there.
               const i = x*zsize + z;
               const intensity = this.arrayValue(x, this.state.yVal, z);
-              // FIXME: Do this math in the shader.
-              const val = (intensity-this.state.data.min) / (this.state.data.max-this.state.data.min);
-              if (x === Math.round(this.state.xVal) || z == Math.round(this.state.zVal)) {
-                  this.state.glY.uniform4f(colorUniformLocation, 1.0, 0.0, 0.0, 1);
-              } else {
-                  this.state.glY.uniform4f(colorUniformLocation, val, val, val, 1);
-              }
+              this.state.glY.uniform1f(intensityUniformLocation, intensity);
 
               this.state.glY.drawArrays(this.state.glY.POINTS, i, 1);
             }
@@ -88,19 +80,14 @@ export class Viewer extends React.Component {
           this.state.glY.endFrameEXP();
           break;
         case 'z':
-          colorUniformLocation = this.state.colorUniformLocationZ; 
+          intensityUniformLocation = this.state.intensityUniformLocationZ; 
           for (let x = 0; x < xsize; x++) {
             for(let y = 0; y < ysize; y++) {
               const i = x*ysize + y;
+              // FIXME: Put the raw values on the GPU and do the lookup
+              // of the value there.
               const intensity = this.arrayValue(x, y, this.state.zVal);
-              // FIXME: Do this math in the shader.
-              const val = (intensity-this.state.data.min) / (this.state.data.max-this.state.data.min);
-              if (x === Math.round(this.state.xVal) || y == Math.round(this.state.yVal)) {
-                  this.state.glZ.uniform4f(colorUniformLocation, 1.0, 0.0, 0.0, 1);
-              } else {
-                  this.state.glZ.uniform4f(colorUniformLocation, val, val, val, 1);
-              }
-
+              this.state.glZ.uniform1f(intensityUniformLocation, intensity);
               this.state.glZ.drawArrays(this.state.glZ.POINTS, i, 1);
             }
           }
@@ -334,9 +321,14 @@ export class Viewer extends React.Component {
           `
           precision mediump float;
 
-          uniform vec4 u_color;
+          uniform float u_intensity;
+          uniform vec2 u_datarange;
           void main(void) {
-            gl_FragColor = u_color;
+              float min = u_datarange.x;
+              float max = u_datarange.y;
+              float val = (u_intensity - min) / (max-min);
+
+            gl_FragColor = vec4(val, val, val, 1.0);
           }
         `
         );
@@ -435,16 +427,18 @@ export class Viewer extends React.Component {
            positionAttributeLocation, size, type, normalize, stride, offset)
 
         gl.clear(gl.COLOR_BUFFER_BIT);
-        var colorUniformLocation = gl.getUniformLocation(program, "u_color");
+        var intensityUniformLocation = gl.getUniformLocation(program, "u_intensity");
+        var datarangeUniformLocation = gl.getUniformLocation(program, "u_datarange");
+        gl.uniform2f(datarangeUniformLocation, data.min, data.max);
         switch (plane) {
           case 'x': 
-            this.setState({colorUniformLocationX: colorUniformLocation});
+            this.setState({intensityUniformLocationX: intensityUniformLocation});
             break;
           case 'y': 
-            this.setState({colorUniformLocationY: colorUniformLocation});
+            this.setState({intensityUniformLocationY: intensityUniformLocation});
             break;
           case 'z': 
-            this.setState({colorUniformLocationZ: colorUniformLocation});
+            this.setState({intensityUniformLocationZ: intensityUniformLocation});
             break;
         }
         return;
