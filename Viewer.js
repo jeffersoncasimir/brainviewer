@@ -36,18 +36,24 @@ export class Viewer extends React.Component {
               this.state.worldPositionAttributeLocationX,
               'x',
               this.state.worldPosBufferX,
+              this.state.crosshairsAttributeLocationX,
+              this.state.crosshairsBufferX
         );
         this.populateWorldPosAttribute(
               this.state.glY,
               this.state.worldPositionAttributeLocationY,
               'y',
               this.state.worldPosBufferY,
+              this.state.crosshairsAttributeLocationY,
+              this.state.crosshairsBufferY,
         );
         this.populateWorldPosAttribute(
               this.state.glZ,
               this.state.worldPositionAttributeLocationZ,
               'z',
               this.state.worldPosBufferZ,
+              this.state.crosshairsAttributeLocationZ,
+              this.state.crosshairsBufferZ,
         );
 
         requestAnimationFrame(() => this.drawPanel('x'));
@@ -252,14 +258,14 @@ export class Viewer extends React.Component {
       this.onContextCreate(gl, 'z');
     }
 
-    populateWorldPosAttribute = (gl, attrib, plane, buffer) => {
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    populateWorldPosAttribute = (gl, worldattrib, plane, worldbuffer, crosshairsattrib, crosshairsbuffer) => {
 
       const xsize = this.props.headers.xspace.space_length;
       const ysize = this.props.headers.yspace.space_length;
       const zsize = this.props.headers.zspace.space_length;
 
       const worldpos = [];
+      const crosshairspos = [];
       switch (plane) {
       case 'x':
           for (let y = 0; y < ysize; y++) {
@@ -269,6 +275,7 @@ export class Viewer extends React.Component {
               // of the value there.
               const intensity = this.arrayValue(this.state.xVal, y, z);
               worldpos.push(this.state.xVal, y, z, intensity);
+              crosshairspos.push((y == this.state.yVal || z == this.state.zVal) ? 1.0 : -1.0)
             }
           }
           break;
@@ -280,6 +287,7 @@ export class Viewer extends React.Component {
               const i = x*zsize + z;
               const intensity = this.arrayValue(x, this.state.yVal, z);
               worldpos.push(x, this.state.yVal, z, intensity);
+              crosshairspos.push((x == this.state.xVal || z == this.state.zVal) ? 1.0 : -1.0)
             }
           }
           break;
@@ -291,21 +299,21 @@ export class Viewer extends React.Component {
               // of the value there.
               const intensity = this.arrayValue(x, y, this.state.zVal);
               worldpos.push(x, y, this.state.zVal, intensity);
+              crosshairspos.push((x == this.state.xVal || y == this.state.yVal) ? 1.0 : -1.0)
             }
           }
       }
 
 
+      gl.bindBuffer(gl.ARRAY_BUFFER, worldbuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(worldpos), gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(attrib);
+      gl.enableVertexAttribArray(worldattrib);
+      gl.vertexAttribPointer(worldattrib, 4, gl.FLOAT, false, 0, 0);
 
-      // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-      const size = 4;          // 2 components per iteration == x, y
-      const type = gl.FLOAT;   // the data is 32bit floats
-      const normalize = false; // don't normalize the data
-      const stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-      const offset = 0;        // start at the beginning of the buffer
-      gl.vertexAttribPointer(attrib, size, type, normalize, stride, offset);
+      gl.bindBuffer(gl.ARRAY_BUFFER, crosshairsbuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(crosshairspos), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(crosshairsattrib);
+      gl.vertexAttribPointer(crosshairsattrib, 1, gl.FLOAT, false, 0, 0);
     }
 
     populateScreenPosAttribute = (gl, program, plane) => {
@@ -427,6 +435,9 @@ export class Viewer extends React.Component {
           // (x, y, z, intensity)
           attribute vec4 a_worldpos; 
 
+          attribute float a_crosshairs;
+          varying float v_crosshairs;
+
           // send (x, y, z) and (intensity)
           // to the fragment shader
           varying vec3 v_worldpos;
@@ -442,6 +453,7 @@ export class Viewer extends React.Component {
             gl_PointSize = u_pixelsize; 
             v_worldpos = a_worldpos.xyz;
             v_intensity = a_worldpos.w;
+            v_crosshairs = a_crosshairs;
           }
         `
         );
@@ -469,6 +481,9 @@ export class Viewer extends React.Component {
           // uniform float u_intensity;
           varying float v_intensity;
 
+          // location of the crosshairs in clipspace
+          varying float v_crosshairs;
+
           int arrayIndex(void) {
               return int(v_worldpos.y 
                 + u_spacesize.z*v_worldpos.z
@@ -479,9 +494,13 @@ export class Viewer extends React.Component {
               float min = u_datarange.x;
               float max = u_datarange.y;
               float val = (v_intensity - min) / (max-min);
-              // int idx = arrayIndex();
 
-              gl_FragColor = vec4(val, val, val, 1.0);
+              if (v_crosshairs > 0.0) {
+                  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+              } else {
+                  gl_FragColor = vec4(val, val, val, 1.0);
+              }
+
           }
         `
         );
@@ -518,6 +537,8 @@ export class Viewer extends React.Component {
 
         const worldPositionAttributeLocation = gl.getAttribLocation(program, "a_worldpos");
         const worldPosBuffer = gl.createBuffer();
+        const crosshairsAttributeLocation = gl.getAttribLocation(program, "a_crosshairs");
+        const crosshairsBuffer = gl.createBuffer();
         console.log('setting locations', plane, worldPositionAttributeLocation);
 
         /*
@@ -533,18 +554,24 @@ export class Viewer extends React.Component {
             this.setState({
                 worldPositionAttributeLocationX: worldPositionAttributeLocation,
                 worldPosBufferX: worldPosBuffer,
+                crosshairsAttributeLocationX: crosshairsAttributeLocation,
+                crosshairsBufferX: crosshairsBuffer,
             });
             break;
           case 'y': 
             this.setState({
                 worldPositionAttributeLocationY: worldPositionAttributeLocation,
                 worldPosBufferY: worldPosBuffer,
+                crosshairsAttributeLocationY: crosshairsAttributeLocation,
+                crosshairsBufferY: crosshairsBuffer,
             });
             break;
           case 'z': 
             this.setState({
                 worldPositionAttributeLocationZ: worldPositionAttributeLocation,
                 worldPosBufferZ: worldPosBuffer,
+                crosshairsAttributeLocationZ: crosshairsAttributeLocation,
+                crosshairsBufferZ: crosshairsBuffer,
             });
             break;
         }
