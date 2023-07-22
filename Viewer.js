@@ -259,6 +259,7 @@ export class Viewer extends React.Component {
     }
 
     populateWorldPosAttribute = (gl, worldattrib, plane, worldbuffer, crosshairsattrib, crosshairsbuffer) => {
+      if (!gl) return;
 
       const xsize = this.props.headers.xspace.space_length;
       const ysize = this.props.headers.yspace.space_length;
@@ -575,6 +576,8 @@ export class Viewer extends React.Component {
             });
             break;
         }
+
+        this.refreshAllPanels();
         return;
     }
 }
