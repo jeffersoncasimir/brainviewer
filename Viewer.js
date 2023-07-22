@@ -44,53 +44,37 @@ export class Viewer extends React.Component {
       const xsize = this.props.headers.xspace.space_length;
       const ysize = this.props.headers.yspace.space_length;
       const zsize = this.props.headers.zspace.space_length;
-      const intensities = [];
-      let intensityUniformLocation;
       switch (plane) {
         case 'x':
-          intensityUniformLocation = this.state.intensityUniformLocationX; 
-          for (let y = 0; y < ysize; y++) {
-            for(let z = 0; z < zsize; z++) {
-              const i = y*zsize + z;
-              // FIXME: Put the raw values on the GPU and do the lookup
-              // of the value there.
-              const intensity = this.arrayValue(this.state.xVal, y, z);
-              this.state.glX.uniform1f(intensityUniformLocation, intensity);
-
-              this.state.glX.drawArrays(this.state.glX.POINTS, i, 1);
-            }
-          }
+          this.populateWorldPosAttribute(
+              this.state.glX,
+              this.state.worldPositionAttributeLocationX,
+              plane,
+              this.state.worldPosBufferY,
+          );
+          this.state.glX.drawArrays(this.state.glX.POINTS, 0, ysize*zsize);
           this.state.glX.flush();
           this.state.glX.endFrameEXP();
           break;
         case 'y':
-          intensityUniformLocation = this.state.intensityUniformLocationY; 
-          for (let x = 0; x < xsize; x++) {
-            for(let z = 0; z < zsize; z++) {
-              // FIXME: Put the raw values on the GPU and do the lookup
-              // of the value there.
-              const i = x*zsize + z;
-              const intensity = this.arrayValue(x, this.state.yVal, z);
-              this.state.glY.uniform1f(intensityUniformLocation, intensity);
-
-              this.state.glY.drawArrays(this.state.glY.POINTS, i, 1);
-            }
-          }
+          this.populateWorldPosAttribute(
+              this.state.glY,
+              this.state.worldPositionAttributeLocationY,
+              plane,
+              this.state.worldPosBufferY,
+          );
+          this.state.glY.drawArrays(this.state.glY.POINTS, 0, xsize*zsize);
           this.state.glY.flush();
           this.state.glY.endFrameEXP();
           break;
         case 'z':
-          intensityUniformLocation = this.state.intensityUniformLocationZ; 
-          for (let x = 0; x < xsize; x++) {
-            for(let y = 0; y < ysize; y++) {
-              const i = x*ysize + y;
-              // FIXME: Put the raw values on the GPU and do the lookup
-              // of the value there.
-              const intensity = this.arrayValue(x, y, this.state.zVal);
-              this.state.glZ.uniform1f(intensityUniformLocation, intensity);
-              this.state.glZ.drawArrays(this.state.glZ.POINTS, i, 1);
-            }
-          }
+          this.populateWorldPosAttribute(
+              this.state.glZ,
+              this.state.worldPositionAttributeLocationZ,
+              plane,
+              this.state.worldPosBufferZ,
+          );
+          this.state.glZ.drawArrays(this.state.glZ.POINTS, 0, xsize*ysize);
           this.state.glZ.flush();
           this.state.glZ.endFrameEXP();
           break;
@@ -273,6 +257,149 @@ export class Viewer extends React.Component {
       this.onContextCreate(gl, 'z');
     }
 
+    populateWorldPosAttribute = (gl, attrib, plane, buffer) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+
+      const xsize = this.props.headers.xspace.space_length;
+      const ysize = this.props.headers.yspace.space_length;
+      const zsize = this.props.headers.zspace.space_length;
+
+      const worldpos = [];
+      switch (plane) {
+      case 'x':
+          for (let y = 0; y < ysize; y++) {
+            for(let z = 0; z < zsize; z++) {
+              const i = y*zsize + z;
+              // FIXME: Put the raw values on the GPU and do the lookup
+              // of the value there.
+              const intensity = this.arrayValue(this.state.xVal, y, z);
+              worldpos.push(this.state.xVal, y, z, intensity);
+            }
+          }
+          break;
+      case 'y':
+          for (let x = 0; x < xsize; x++) {
+            for(let z = 0; z < zsize; z++) {
+              // FIXME: Put the raw values on the GPU and do the lookup
+              // of the value there.
+              const i = x*zsize + z;
+              const intensity = this.arrayValue(x, this.state.yVal, z);
+              worldpos.push(x, this.state.yVal, z, intensity);
+            }
+          }
+          break;
+      case 'z':
+          for (let x = 0; x < xsize; x++) {
+            for(let y = 0; y < ysize; y++) {
+              const i = x*ysize + y;
+              // FIXME: Put the raw values on the GPU and do the lookup
+              // of the value there.
+              const intensity = this.arrayValue(x, y, this.state.zVal);
+              worldpos.push(x, y, this.state.zVal, intensity);
+            }
+          }
+      }
+
+
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(worldpos), gl.DYNAMIC_DRAW);
+      gl.enableVertexAttribArray(attrib);
+
+      // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+      const size = 4;          // 2 components per iteration == x, y
+      const type = gl.FLOAT;   // the data is 32bit floats
+      const normalize = false; // don't normalize the data
+      const stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
+      const offset = 0;        // start at the beginning of the buffer
+      gl.vertexAttribPointer(attrib, size, type, normalize, stride, offset);
+    }
+
+    populateScreenPosAttribute = (gl, program, plane) => {
+        const positionAttributeLocation = gl.getAttribLocation(program, "a_screenpos");
+
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+
+
+        let positions = [];
+        const xsize = this.props.headers.xspace.space_length;
+        const ysize = this.props.headers.yspace.space_length;
+        const zsize = this.props.headers.zspace.space_length;
+        switch (plane) {
+          case 'x':
+            for (let y = 0; y < ysize; y++) {
+                for(let z = 0; z < zsize; z++) {
+                    positions.push(y);
+                    positions.push(z);
+                }
+            }
+            break;
+          case 'y':
+            for (let x = 0; x < xsize; x++) {
+                for(let z = 0; z < zsize; z++) {
+                    positions.push(x);
+                    positions.push(z);
+                }
+            }
+            break;
+          case 'z':
+            for (let x = 0; x < xsize; x++) {
+                for(let y = 0; y < ysize; y++) {
+                    positions.push(x);
+                    positions.push(y);
+                }
+            }
+            break;
+        }
+        
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(positionAttributeLocation);
+
+        // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+        const size = 2;          // 2 components per iteration == vec2 = (x, y)
+        const type = gl.FLOAT;   // the data is 32bit floats
+        const normalize = false; // don't normalize the data
+        const stride = 0;
+        const offset = 0;
+        gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
+        return;
+    }
+
+    calculateDisplayUniforms = (gl, program, plane) => {
+        const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+        const pixelSizeUniformLocation = gl.getUniformLocation(program, "u_pixelsize");
+        switch (plane) {
+          case 'x':
+            gl.uniform2f(
+                resolutionUniformLocation,
+                this.props.headers.yspace.space_length,
+                this.props.headers.zspace.space_length,
+            );
+                
+            console.log('pointuniform', pixelSizeUniformLocation, resolutionUniformLocation);
+            gl.uniform1f(pixelSizeUniformLocation, 10 );
+            break;
+          case 'y':
+            gl.uniform2f(
+                resolutionUniformLocation,
+                this.props.headers.xspace.space_length,
+                this.props.headers.zspace.space_length,
+            );
+            console.log('pointuniform', pixelSizeUniformLocation, resolutionUniformLocation);
+            gl.uniform1f(pixelSizeUniformLocation, gl.drawingBufferWidth / this.props.headers.xspace.space_length);
+            break;
+          case 'z':
+            gl.uniform2f(
+                resolutionUniformLocation,
+                this.props.headers.xspace.space_length,
+                this.props.headers.yspace.space_length,
+            );
+            console.log('pointuniform', pixelSizeUniformLocation, resolutionUniformLocation);
+            gl.uniform1f(pixelSizeUniformLocation, gl.drawingBufferWidth / this.props.headers.xspace.space_length);
+            break;
+        }
+    }
+    
     onContextCreate = (gl, plane) => {
         const data = this.preprocess(this.props.rawData);
         switch (plane) {
@@ -298,21 +425,39 @@ export class Viewer extends React.Component {
         gl.shaderSource(
           vert,
           `
-          attribute vec2 a_pos;
+          attribute vec2 a_screenpos;
           uniform vec2 u_resolution;
           uniform float u_pixelsize;
+
+          // (x, y, z, intensity)
+          attribute vec4 a_worldpos; 
+
+          // send (x, y, z) and (intensity)
+          // to the fragment shader
+          varying vec3 v_worldpos;
+          varying float v_intensity;
+
+
           void main(void) {
-            vec2 normalize_to_one = a_pos / u_resolution;
+            vec2 normalize_to_one = a_screenpos / u_resolution;
             vec2 normalize_to_two = normalize_to_one * 2.0;
             vec2 normalize_to_clipspace = normalize_to_two - 1.0;
 
             gl_Position = vec4(normalize_to_clipspace * vec2(1, -1), 0, 1);
             gl_PointSize = u_pixelsize; 
+            v_worldpos = a_worldpos.xyz;
+            v_intensity = a_worldpos.w;
           }
         `
         );
             // gl_Position = vec4(normalize_to_clipspace, 0, 1);
         gl.compileShader(vert);
+        var success = gl.getShaderParameter(vert, gl.COMPILE_STATUS);
+        if (!success) {
+            msg = gl.getShaderInfoLog(vert);
+            gl.deleteShader(vert);
+            throw new Error("Could not compile shader:" + msg);
+        }
 
         // Create fragment shader (color)
         const frag = gl.createShader(gl.FRAGMENT_SHADER);
@@ -321,124 +466,91 @@ export class Viewer extends React.Component {
           `
           precision mediump float;
 
-          uniform float u_intensity;
           uniform vec2 u_datarange;
+
+          uniform vec3 u_spacesize;
+
+          varying vec3 v_worldpos;
+          // uniform float u_intensity;
+          varying float v_intensity;
+
+          int arrayIndex(void) {
+              return int(v_worldpos.y 
+                + u_spacesize.z*v_worldpos.z
+                + u_spacesize.z*v_worldpos.x*u_spacesize.y);
+          }
+
           void main(void) {
               float min = u_datarange.x;
               float max = u_datarange.y;
-              float val = (u_intensity - min) / (max-min);
+              float val = (v_intensity - min) / (max-min);
+              // int idx = arrayIndex();
 
-            gl_FragColor = vec4(val, val, val, 1.0);
+              gl_FragColor = vec4(val, val, val, 1.0);
           }
         `
         );
         gl.compileShader(frag);
+        var success = gl.getShaderParameter(frag, gl.COMPILE_STATUS);
+        if (!success) {
+            msg = gl.getShaderInfoLog(frag);
+            gl.deleteShader(frag);
+            throw new Error("Could not compile shader:" + msg);
+        }
 
         // Link together into a program
         const program = gl.createProgram();
-
-        let positionAttributeLocation = gl.getAttribLocation(program, "a_pos");
-
-        
-        let positionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-        let positions = [];
-        let xspace;
-        let yspace;
-        let zspace;
-        switch (plane) {
-          case 'x':
-            ysize = this.props.headers.yspace.space_length;
-            zsize = this.props.headers.zspace.space_length;
-            for (let y = 0; y < ysize; y++) {
-                for(let z = 0; z < zsize; z++) {
-                    positions.push(y);
-                    positions.push(z);
-                }
-            }
-            break;
-          case 'y':
-            xsize = this.props.headers.xspace.space_length;
-            zsize = this.props.headers.zspace.space_length;
-            for (let x = 0; x < xsize; x++) {
-                for(let z = 0; z < zsize; z++) {
-                    positions.push(x);
-                    positions.push(z);
-                }
-            }
-            break;
-          case 'z':
-            xsize = this.props.headers.xspace.space_length;
-            ysize = this.props.headers.yspace.space_length;
-            for (let x = 0; x < xsize; x++) {
-                for(let y = 0; y < ysize; y++) {
-                    positions.push(x);
-                    positions.push(y);
-                }
-            }
-            break;
-        }
-        //gl.uniform2f(resolutionUniformLocation, gl.canvas.width, gl.canvas.height);
-        //console.log('u_resolition', xsize, ysize);
-        
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-        gl.bindBuffer(gl.ARRAY_BUFFER, data.floats);
-        gl.bufferData(gl.ARRAY_BUFFER, data.floats, gl.STATIC_DRAW);
 
 
         gl.attachShader(program, vert);
         gl.attachShader(program, frag);
         gl.linkProgram(program);
-        gl.useProgram(program);
-        let resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-        let pixelSizeUniformLocation = gl.getUniformLocation(program, "u_pixelsize");
-        switch (plane) {
-          case 'x':
-            gl.uniform2f(resolutionUniformLocation, ysize, zsize);
-            console.log('pointuniform', pixelSizeUniformLocation, resolutionUniformLocation);
-            gl.uniform1f(pixelSizeUniformLocation, 10 );
-            break;
-          case 'y':
-            gl.uniform2f(resolutionUniformLocation, xsize, zsize);
-            console.log('pointuniform', pixelSizeUniformLocation, resolutionUniformLocation);
-            gl.uniform1f(pixelSizeUniformLocation, gl.drawingBufferWidth / xsize );
-            break;
-          case 'z':
-            gl.uniform2f(resolutionUniformLocation, xsize, ysize);
-            console.log('pointuniform', pixelSizeUniformLocation, resolutionUniformLocation);
-            gl.uniform1f(pixelSizeUniformLocation, gl.drawingBufferWidth / xsize );
-            break;
+        var success = gl.getProgramParameter(program, gl.LINK_STATUS);
+        if (!success) {
+            const msg = gl.getProgramInfoLog(program);
+            gl.deleteProgram(program);
+            throw new Error("Could not link program: " + msg);
         }
+                       
+        gl.useProgram(program);
 
-        gl.enableVertexAttribArray(positionAttributeLocation);
-
-        // Bind the position buffer.
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-        // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-        var size = 2;          // 2 components per iteration
-        var type = gl.FLOAT;   // the data is 32bit floats
-        var normalize = false; // don't normalize the data
-        var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
-        var offset = 0;        // start at the beginning of the buffer
-        gl.vertexAttribPointer(
-           positionAttributeLocation, size, type, normalize, stride, offset)
+        this.populateScreenPosAttribute(gl, program, plane);
+        this.calculateDisplayUniforms(gl, program, plane);
 
         gl.clear(gl.COLOR_BUFFER_BIT);
-        var intensityUniformLocation = gl.getUniformLocation(program, "u_intensity");
         var datarangeUniformLocation = gl.getUniformLocation(program, "u_datarange");
         gl.uniform2f(datarangeUniformLocation, data.min, data.max);
+
+        const worldPositionAttributeLocation = gl.getAttribLocation(program, "a_worldpos");
+        const worldPosBuffer = gl.createBuffer();
+        console.log('setting locations', plane, worldPositionAttributeLocation);
+
+        /*
+        const worldBufferBuffer = gl.createBuffer();
+
+        const worldAttributeLocation = gl.getAttribLocation(program, "a_worldpos");
+        gl.bufferData(gl.ARRAY_BUFFER, [], gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(worldAttributeLocation);
+        */
+
         switch (plane) {
           case 'x': 
-            this.setState({intensityUniformLocationX: intensityUniformLocation});
+            this.setState({
+                worldPositionAttributeLocationX: worldPositionAttributeLocation,
+                worldPosBufferX: worldPosBuffer,
+            });
             break;
           case 'y': 
-            this.setState({intensityUniformLocationY: intensityUniformLocation});
+            this.setState({
+                worldPositionAttributeLocationY: worldPositionAttributeLocation,
+                worldPosBufferY: worldPosBuffer,
+            });
             break;
           case 'z': 
-            this.setState({intensityUniformLocationZ: intensityUniformLocation});
+            this.setState({
+                worldPositionAttributeLocationZ: worldPositionAttributeLocation,
+                worldPosBufferZ: worldPosBuffer,
+            });
             break;
         }
         return;
