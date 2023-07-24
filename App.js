@@ -36,6 +36,12 @@ export default function App() {
     req.responseType = "arraybuffer";
     req.setRequestHeader('Authorization', 'Bearer ' + token);
     req.onload = (evt) => {
+        if (req.status < 200 || req.status >= 300) {
+            SecureStore.setItemAsync(key, null);
+            setToken(null);
+            return;
+        }
+
         var result = hdf5Loader(req.response);
         setRawData(result.raw_data);
         setHeaderData(JSON.parse(result.header_text));
