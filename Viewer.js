@@ -212,7 +212,7 @@ export class Viewer extends React.Component {
     }
 
     arrayValue = (x, y, z) => {
-        if (!this.state.dataview) {
+        if (!this.state.data) {
             // console.log('No dataview');
             return;
         }
@@ -221,7 +221,7 @@ export class Viewer extends React.Component {
             return;
         }
         const idx = this.arrayIndex(x, y, z);
-        return this.state.dataview.getFloat32(idx*4, true);
+        return this.state.data.floats[idx];
     }
 
     preprocess = (rawdata) => {
@@ -408,13 +408,13 @@ export class Viewer extends React.Component {
         const data = this.preprocess(this.props.rawData);
         switch (plane) {
           case 'x':
-            this.setState({data: data, glX: gl, dataview: new DataView(this.props.rawData)});
+            this.setState({data: data, glX: gl});
             break;
           case 'y':
-            this.setState({data: data, glY: gl, dataview: new DataView(this.props.rawData)});
+            this.setState({data: data, glY: gl});
             break;
           case 'z':
-            this.setState({data: data, glZ: gl, dataview: new DataView(this.props.rawData)});
+            this.setState({data: data, glZ: gl});
             break;
         }
 
