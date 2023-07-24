@@ -17,15 +17,16 @@ export default function App() {
 
 
   // Verifying validity by pinging an endpoint that always returns JSON
-  const verifyTokenValidity = async (token) => {
-    const response = await fetch(`${API_URL}/projects`, {
+  const verifyTokenValidity = (token) => {
+    return fetch(`${API_URL}/projects`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer: ${token}`,
       }
-    });
-    return response.json().then((responseJson) => {
-      return !('error' in responseJson);
+    }).then((response) => {
+      return response.json().then((responseJson) => {
+        return !('error' in responseJson);
+      });
     });
   }
 
