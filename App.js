@@ -6,9 +6,6 @@ import {Viewer} from './Viewer';
 import {Login} from './Login';
 import * as SecureStore from 'expo-secure-store';
 
-async function getValueFor(key) {
-  return await SecureStore.getItemAsync(key);
-}
 
 export default function App() {
   const [token, setToken] = useState(null);
@@ -16,10 +13,26 @@ export default function App() {
   const [rawData, setRawData] = useState(null);
   const [headerData, setHeaderData] = useState(null);
 
+  const API_URL = 'https://demo-25-0.loris.ca/api/v0.0.3';
+
+
+  // Verifying validity by pinging an endpoint that always returns JSON
+  const verifyTokenValidity = async (token) => {
+    const response = await fetch(`${API_URL}/projects`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer: ${token}`,
+      }
+    });
+    return response.json().then((responseJson) => {
+      return !('error' in responseJson);
+    });
+  }
+
   useEffect(() => {
     if (token)
       return;
-    getValueFor('loris_token').then((lorisToken) => {
+    SecureStore.getItemAsync('loris_token').then((lorisToken) => {
       if (lorisToken)
         setToken(lorisToken);
     });
@@ -30,25 +43,36 @@ export default function App() {
     if (!token) {
       return;
     }
-    //    Fetch in react native does not support ArrayBuffer
-    const req = new XMLHttpRequest();
-    req.open('GET', 'https://demo-25-0.loris.ca/api/v0.0.3/candidates/587630/V1/images/demo_587630_V1_t2_001_t2-defaced_001.mnc', true);
-    req.responseType = "arraybuffer";
-    req.setRequestHeader('Authorization', 'Bearer ' + token);
-    req.onload = (evt) => {
-        var result = hdf5Loader(req.response);
-        setRawData(result.raw_data);
-        setHeaderData(JSON.parse(result.header_text));
-    };
-    req.send(null);
+
+    verifyTokenValidity(token).then((tokenIsValid) => {
+      if (tokenIsValid) {
+        // Fetch in react native does not support ArrayBuffer
+        const req = new XMLHttpRequest();
+        req.open('GET', `${API_URL}/candidates/587630/V1/images/demo_587630_V1_t2_001_t2-defaced_001.mnc`, true);
+        req.responseType = "arraybuffer";
+        req.setRequestHeader('Authorization', 'Bearer ' + token);
+        req.onload = (evt) => {
+          const result = hdf5Loader(req.response);
+          setRawData(result.raw_data);
+          setHeaderData(JSON.parse(result.header_text));
+        };
+        req.send(null);
+      } else {
+        SecureStore.setItemAsync('loris_token', '').then(() => {
+          alert('Token expired. Please log in again');
+          setToken(null);
+        });
+      }
+    });
   }, [token]);
 
   if (!token) {
     return (
-        <Login
-            token={token}
-            setToken={setToken}
-        />
+      <Login
+        url={`${API_URL}/login`}
+        token={token}
+        setToken={setToken}
+      />
     )
   }
   return (

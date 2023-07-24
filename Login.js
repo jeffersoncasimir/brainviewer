@@ -11,10 +11,6 @@ import {
 } from "react-native";
 import * as SecureStore from 'expo-secure-store';
 
-async function save(key, value) {
-    await SecureStore.setItemAsync(key, value);
-}
-
 export class Login extends React.Component {
     constructor(props) {
         super(props);
@@ -26,7 +22,7 @@ export class Login extends React.Component {
 
 
     handleLogin = () => {
-        fetch('https://demo-25-0.loris.ca/api/v0.0.3/login/', {
+        fetch(this.props.url, {
             method: 'POST',
             body: JSON.stringify({
                 username : this.state.username,
@@ -39,24 +35,16 @@ export class Login extends React.Component {
             .then((response) => {
                response.json().then((responseJSON) => {
                     if (responseJSON.token) {
-                        console.log('response ok');
-                        save('loris_token', responseJSON.token).then(() => {
+                        SecureStore.setItemAsync('loris_token', responseJSON.token).then(() => {
                             this.props.setToken(responseJSON.token);
-                            return true;
                         });
+                        return true;
                     }
+                    alert('Unable to authenticate with the credentials provided.');
                 });
             })
-            // .then((data) => {
-            //     if (data === null) {
-            //         console.log('Incorrect credentials');
-            //         console.log(`"${this.state.username}" -- "${this.state.password}"`);
-            //     } else {
-            //         console.log(`saving token: ${data.token}`);
-            //
-            //     }
-            // })
             .catch((err) => {
+                alert(err.message);
                 console.log(err.message);
             });
     }
