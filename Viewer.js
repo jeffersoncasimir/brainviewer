@@ -113,7 +113,7 @@ export class Viewer extends React.Component {
             maxValZ = this.props.headers.zspace.space_length;
         }
 
-        console.log('rendering');///, this.state);
+        //console.log('rendering');///, this.state);
 
         // FIXME: Make this dynamic
         const viewWidth = 350;
@@ -264,55 +264,75 @@ export class Viewer extends React.Component {
       const xsize = this.props.headers.xspace.space_length;
       const ysize = this.props.headers.yspace.space_length;
       const zsize = this.props.headers.zspace.space_length;
+      let worldpos;
 
-      const worldpos = [];
-      const crosshairspos = [];
       switch (plane) {
       case 'x':
+          worldpos = this.state.worldposX;
+          crosshairs = this.state.crosshairsX;
+          if (!worldpos) {
+              worldpos = new Float32Array(ysize*zsize);
+              crosshairs = new Float32Array(ysize*zsize);
+              this.setState({worldPosX: worldpos, crosshairsX: crosshairs});
+          }
           for (let y = 0; y < ysize; y++) {
             for(let z = 0; z < zsize; z++) {
               const i = y*zsize + z;
               // FIXME: Put the raw values on the GPU and do the lookup
               // of the value there.
               const intensity = this.arrayValue(this.state.xVal, y, z);
-              worldpos.push(this.state.xVal, y, z, intensity);
-              crosshairspos.push((y == this.state.yVal || z == this.state.zVal) ? 1.0 : -1.0)
+              worldpos[i] = intensity;
+              crosshairs[i] = (y == this.state.yVal || z == this.state.zVal) ? 1.0 : -1.0;
             }
           }
           break;
       case 'y':
+          worldpos = this.state.worldposY;
+          crosshairs = this.state.crosshairsY;
+          if (!worldpos) {
+              worldpos = new Float32Array(xsize*zsize);
+              crosshairs = new Float32Array(xsize*zsize);
+              this.setState({worldPosY: worldpos, crosshairsY: crosshairs});
+          }
           for (let x = 0; x < xsize; x++) {
             for(let z = 0; z < zsize; z++) {
               // FIXME: Put the raw values on the GPU and do the lookup
               // of the value there.
               const i = x*zsize + z;
               const intensity = this.arrayValue(x, this.state.yVal, z);
-              worldpos.push(x, this.state.yVal, z, intensity);
-              crosshairspos.push((x == this.state.xVal || z == this.state.zVal) ? 1.0 : -1.0)
+              worldpos[i] = intensity;
+              crosshairs[i] = (x == this.state.xVal || z == this.state.zVal) ? 1.0 : -1.0;
             }
           }
           break;
       case 'z':
+          worldpos = this.state.worldposZ;
+          crosshairs = this.state.crosshairsZ;
+          if (!worldpos) {
+              worldpos = new Float32Array(ysize*zsize);
+              crosshairs = new Float32Array(ysize*zsize);
+              this.setState({worldPosZ: worldpos, crosshairsZ: crosshairs});
+          }
           for (let x = 0; x < xsize; x++) {
             for(let y = 0; y < ysize; y++) {
               const i = x*ysize + y;
               // FIXME: Put the raw values on the GPU and do the lookup
               // of the value there.
               const intensity = this.arrayValue(x, y, this.state.zVal);
-              worldpos.push(x, y, this.state.zVal, intensity);
-              crosshairspos.push((x == this.state.xVal || y == this.state.yVal) ? 1.0 : -1.0)
+              worldpos[i] = intensity;
+              crosshairs[i] = (x == this.state.xVal || y == this.state.yVal) ? 1.0 : -1.0;
             }
           }
       }
 
 
       gl.bindBuffer(gl.ARRAY_BUFFER, worldbuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(worldpos), gl.DYNAMIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, worldpos, gl.STATIC_DRAW);
       gl.enableVertexAttribArray(worldattrib);
-      gl.vertexAttribPointer(worldattrib, 4, gl.FLOAT, false, 0, 0);
+      gl.vertexAttribPointer(worldattrib, 1, gl.FLOAT, false, 0, 0);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, crosshairsbuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(crosshairspos), gl.DYNAMIC_DRAW);
+      gl.bufferData(gl.ARRAY_BUFFER, crosshairs, gl.STATIC_DRAW);
       gl.enableVertexAttribArray(crosshairsattrib);
       gl.vertexAttribPointer(crosshairsattrib, 1, gl.FLOAT, false, 0, 0);
     }
@@ -433,8 +453,7 @@ export class Viewer extends React.Component {
           uniform vec2 u_resolution;
           uniform float u_pixelsize;
 
-          // (x, y, z, intensity)
-          attribute vec4 a_worldpos; 
+          attribute float a_intensity; 
 
           attribute float a_crosshairs;
           varying float v_crosshairs;
@@ -452,8 +471,8 @@ export class Viewer extends React.Component {
 
             gl_Position = vec4(normalize_to_clipspace * vec2(1, -1), 0, 1);
             gl_PointSize = u_pixelsize; 
-            v_worldpos = a_worldpos.xyz;
-            v_intensity = a_worldpos.w;
+            // v_worldpos = a_worldpos.xyz;
+            v_intensity = a_intensity;
             v_crosshairs = a_crosshairs;
           }
         `
@@ -478,18 +497,10 @@ export class Viewer extends React.Component {
 
           uniform vec3 u_spacesize;
 
-          varying vec3 v_worldpos;
-          // uniform float u_intensity;
           varying float v_intensity;
 
           // location of the crosshairs in clipspace
           varying float v_crosshairs;
-
-          int arrayIndex(void) {
-              return int(v_worldpos.y 
-                + u_spacesize.z*v_worldpos.z
-                + u_spacesize.z*v_worldpos.x*u_spacesize.y);
-          }
 
           void main(void) {
               float min = u_datarange.x;
@@ -536,7 +547,7 @@ export class Viewer extends React.Component {
         var datarangeUniformLocation = gl.getUniformLocation(program, "u_datarange");
         gl.uniform2f(datarangeUniformLocation, data.min, data.max);
 
-        const worldPositionAttributeLocation = gl.getAttribLocation(program, "a_worldpos");
+        const worldPositionAttributeLocation = gl.getAttribLocation(program, "a_intensity");
         const worldPosBuffer = gl.createBuffer();
         const crosshairsAttributeLocation = gl.getAttribLocation(program, "a_crosshairs");
         const crosshairsBuffer = gl.createBuffer();
