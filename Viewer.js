@@ -130,9 +130,7 @@ export class Viewer extends React.Component {
                             this.setState({
                                 yVal: Math.round(scaledY * ysize),
                                 zVal: Math.round(scaledZ * zsize),
-                            });
-                            console.log(nativeEvent.locationY, nativeEvent.locationZ, scaledY, scaledZ);
-                            this.refreshAllPanels();
+                            }, this.refreshAllPanels);
                         }
                     }>
                     <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateX} />
@@ -155,8 +153,7 @@ export class Viewer extends React.Component {
                             this.setState({
                                 xVal: Math.round(scaledX * xsize),
                                 zVal: Math.round(scaledZ * zsize),
-                            });
-                            this.refreshAllPanels();
+                            }, this.refreshAllPanels);
                         }
                     }>
                     <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateY} />
@@ -179,8 +176,7 @@ export class Viewer extends React.Component {
                             this.setState({
                                 xVal: Math.round(scaledX * xsize),
                                 yVal: Math.round(scaledY * ysize),
-                            });
-                            this.refreshAllPanels();
+                            }, this.refreshAllPanels);
                         }
                     }>
                     <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateZ} />
