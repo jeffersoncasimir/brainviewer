@@ -31,6 +31,7 @@ export class Viewer extends React.Component {
     }
 
     refreshAllPanels = () => {
+        return;
         this.populateWorldPosAttribute(
               this.state.glX,
               this.state.worldPositionAttributeLocationX,
@@ -61,10 +62,26 @@ export class Viewer extends React.Component {
         requestAnimationFrame(() => this.drawPanel('z'));
     }
     handleSliderChange = (plane, newValue) => {
+        const sliceNoUniformLocation = this.state.xSliceNoUniform;
+        if (sliceNoUniformLocation) {
+
+            console.log('set slice no uniform', newValue);
+            this.state.glX.uniform1i(
+                sliceNoUniformLocation,
+                newValue,
+            );
+
+        var primitiveType = this.state.glX.TRIANGLES;
+        var offset = 0;
+        var count = 6;
+        this.state.glX.drawArrays(primitiveType, offset, count);
+            this.state.glX.flush();
+            this.state.glX.endFrameEXP();
+        }
         const newState = {};
         newState[plane] = newValue;
         this.setState(newState);
-        this.refreshAllPanels();
+        // this.refreshAllPanels();
     };
 
     drawPanel = (plane) => {
@@ -98,17 +115,18 @@ export class Viewer extends React.Component {
             return <View><Text>Loading raw data..</Text></View>
         }
 
-        var maxValX = 100;
+        let maxValX = 100;
+        let maxValY = 100;
+        let maxValZ = 100;
+
         if (this.props.headers.xspace) {
             maxValX = this.props.headers.xspace.space_length;
         }
 
-        var maxValY = 100;
         if (this.props.headers.yspace) {
             maxValY = this.props.headers.yspace.space_length;
         }
 
-        var maxValZ = 100;
         if (this.props.headers.zspace) {
             maxValZ = this.props.headers.zspace.space_length;
         }
@@ -145,54 +163,6 @@ export class Viewer extends React.Component {
                   label='Sagittal:'
                   onSliderChange={this.handleSliderChange}
                 />
-                <View style={{width: 350, height: 400, backgroundColor: 'pink'}}>
-                    <Pressable onPress={
-                        ({nativeEvent}) => {
-                            const xsize = this.props.headers.xspace.space_length;
-                            const zsize = this.props.headers.zspace.space_length;
-                            const scaledX = nativeEvent.locationX / viewWidth;
-                            const scaledZ = nativeEvent.locationY / viewHeight;
-                            this.setState({
-                                xVal: Math.round(scaledX * xsize),
-                                zVal: Math.round(scaledZ * zsize),
-                            });
-                            this.refreshAllPanels();
-                        }
-                    }>
-                    <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateY} />
-                    </Pressable>
-                </View>
-                <SegmentSlider
-                  val={this.state.yVal}
-                  valName={'yVal'}
-                  max={maxValY}
-                  label='Coronal:'
-                  onSliderChange={this.handleSliderChange}
-                />
-                <View style={{width: 350, height: 400, backgroundColor: 'pink'}}>
-                    <Pressable onPress={
-                        ({nativeEvent}) => {
-                            const xsize = this.props.headers.xspace.space_length;
-                            const ysize = this.props.headers.yspace.space_length;
-                            const scaledX = nativeEvent.locationX / viewWidth;
-                            const scaledY = nativeEvent.locationY / viewHeight;
-                            this.setState({
-                                xVal: Math.round(scaledX * xsize),
-                                yVal: Math.round(scaledY * ysize),
-                            });
-                            this.refreshAllPanels();
-                        }
-                    }>
-                    <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }} onContextCreate={this.onContextCreateZ} />
-                    </Pressable>
-                </View>
-                <SegmentSlider
-                  val={this.state.zVal}
-                  valName={'zVal'}
-                  max={maxValZ}
-                  label='Axial:'
-                  onSliderChange={this.handleSliderChange}
-                />
                 </View>
                );
     }
@@ -211,17 +181,19 @@ export class Viewer extends React.Component {
             zSize * x * ySize
     }
 
-    arrayValue = (x, y, z) => {
-        if (!this.state.data) {
-            // console.log('No dataview');
+    arrayValue = (x, y, z, d) => {
+        console.log(d);
+        const dat = d || this.state.data;
+        if (!dat) {
+            console.log('No data');
             return;
         }
         if (!this.props.headers.xspace) {
             console.warn('No xspace');
             return;
         }
-        const idx = this.arrayIndex(x, y, z);
-        return this.state.data.floats[idx];
+        const idx = this.arrayIndex(x, y, z, dat);
+        return dat[idx];
     }
 
     preprocess = (rawdata) => {
@@ -258,140 +230,76 @@ export class Viewer extends React.Component {
       this.onContextCreate(gl, 'z');
     }
 
-    populateWorldPosAttribute = (gl, worldattrib, plane, worldbuffer, crosshairsattrib, crosshairsbuffer) => {
-      if (!gl) return;
-
+    loadIntensityTexture = (gl, data) => {
+        // Create a texture.
       const xsize = this.props.headers.xspace.space_length;
       const ysize = this.props.headers.yspace.space_length;
       const zsize = this.props.headers.zspace.space_length;
-      let worldpos;
+        var texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_3D, texture);
 
-      switch (plane) {
-      case 'x':
-          worldpos = this.state.worldposX;
-          crosshairs = this.state.crosshairsX;
-          if (!worldpos) {
-              worldpos = new Float32Array(ysize*zsize);
-              crosshairs = new Float32Array(ysize*zsize);
-              this.setState({worldPosX: worldpos, crosshairsX: crosshairs});
-          }
-          for (let y = 0; y < ysize; y++) {
-            for(let z = 0; z < zsize; z++) {
-              const i = y*zsize + z;
-              // FIXME: Put the raw values on the GPU and do the lookup
-              // of the value there.
-              const intensity = this.arrayValue(this.state.xVal, y, z);
-              worldpos[i] = intensity;
-              crosshairs[i] = (y == this.state.yVal || z == this.state.zVal) ? 1.0 : -1.0;
-            }
-          }
-          break;
-      case 'y':
-          worldpos = this.state.worldposY;
-          crosshairs = this.state.crosshairsY;
-          if (!worldpos) {
-              worldpos = new Float32Array(xsize*zsize);
-              crosshairs = new Float32Array(xsize*zsize);
-              this.setState({worldPosY: worldpos, crosshairsY: crosshairs});
-          }
-          for (let x = 0; x < xsize; x++) {
-            for(let z = 0; z < zsize; z++) {
-              // FIXME: Put the raw values on the GPU and do the lookup
-              // of the value there.
-              const i = x*zsize + z;
-              const intensity = this.arrayValue(x, this.state.yVal, z);
-              worldpos[i] = intensity;
-              crosshairs[i] = (x == this.state.xVal || z == this.state.zVal) ? 1.0 : -1.0;
-            }
-          }
-          break;
-      case 'z':
-          worldpos = this.state.worldposZ;
-          crosshairs = this.state.crosshairsZ;
-          if (!worldpos) {
-              worldpos = new Float32Array(ysize*zsize);
-              crosshairs = new Float32Array(ysize*zsize);
-              this.setState({worldPosZ: worldpos, crosshairsZ: crosshairs});
-          }
-          for (let x = 0; x < xsize; x++) {
-            for(let y = 0; y < ysize; y++) {
-              const i = x*ysize + y;
-              // FIXME: Put the raw values on the GPU and do the lookup
-              // of the value there.
-              const intensity = this.arrayValue(x, y, this.state.zVal);
-              worldpos[i] = intensity;
-              crosshairs[i] = (x == this.state.xVal || y == this.state.yVal) ? 1.0 : -1.0;
-            }
-          }
-      }
-
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, worldbuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, worldpos, gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(worldattrib);
-      gl.vertexAttribPointer(worldattrib, 1, gl.FLOAT, false, 0, 0);
-
-      gl.bindBuffer(gl.ARRAY_BUFFER, crosshairsbuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, crosshairs, gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(crosshairsattrib);
-      gl.vertexAttribPointer(crosshairsattrib, 1, gl.FLOAT, false, 0, 0);
-    }
-
-    populateScreenPosAttribute = (gl, program, plane) => {
-        const positionAttributeLocation = gl.getAttribLocation(program, "a_screenpos");
-
-        const positionBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-
-
-        let positions = [];
-        const xsize = this.props.headers.xspace.space_length;
-        const ysize = this.props.headers.yspace.space_length;
-        const zsize = this.props.headers.zspace.space_length;
-        switch (plane) {
-          case 'x':
-            for (let y = 0; y < ysize; y++) {
-                for(let z = 0; z < zsize; z++) {
-                    positions.push(y);
-                    positions.push(z);
-                }
-            }
-            break;
-          case 'y':
-            for (let x = 0; x < xsize; x++) {
-                for(let z = 0; z < zsize; z++) {
-                    positions.push(x);
-                    positions.push(z);
-                }
-            }
-            break;
-          case 'z':
-            for (let x = 0; x < xsize; x++) {
-                for(let y = 0; y < ysize; y++) {
-                    positions.push(x);
-                    positions.push(y);
-                }
-            }
-            break;
+        const values = new Uint8Array(data.floats.length*4);
+        for(i = 0; i < data.floats.length; i++) {
+            const val = ((data.floats[i] -data.min) / (data.max -data.min)) * 255;
+            values[(i*3)] = val;
+            values[(i*3)+1] = val;
+            values[(i*3)+2] = val;
         }
-        
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(positionAttributeLocation);
+        /*
+        for(let x = 0; x < xsize; x++) {
+            for(let y = 0; y < ysize; y++) {
+                for(let z = 0; z < zsize; z++) {
+                    const val = ((this.arrayValue(x, y, z, data) - data.min) / (data.max - data.min)) * 256;
+                    const i = this.arrayIndex(x, y, z, data);
+                    // console.log(i, val, this.arrayValue(x, y, z, data));
+                    values[(i*3)] = val;
+                    values[(i*3)+1] = val;
+                    values[(i*3)+2] = val;
+                }
 
-        // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-        const size = 2;          // 2 components per iteration == vec2 = (x, y)
-        const type = gl.FLOAT;   // the data is 32bit floats
-        const normalize = false; // don't normalize the data
-        const stride = 0;
-        const offset = 0;
-        gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-        return;
+            }
+        }
+        */
+
+        // Set the parameters so we can render any size image.
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+       
+          // Upload the image into the texture.
+          console.log('x', xsize, 'y', ysize, 'z', zsize);
+
+
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGB, zsize, ysize, xsize, 0, gl.RGB, gl.UNSIGNED_BYTE, values);
+
     }
-
     calculateDisplayUniforms = (gl, program, plane) => {
         const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
         const pixelSizeUniformLocation = gl.getUniformLocation(program, "u_pixelsize");
+        const spaceSizeUniformLocation = gl.getUniformLocation(program, "u_spacesize");
+        if (spaceSizeUniformLocation) {
+            gl.uniform3f(
+                spaceSizeUniformLocation,
+                this.props.headers.xspace.space_length,
+                this.props.headers.yspace.space_length,
+                this.props.headers.zspace.space_length,
+            );
+            console.log('set space size uniform');
+        } else {
+            console.log('no space size uniform');
+        }
+        const sliceNoUniformLocation = gl.getUniformLocation(program, "u_sliceno");
+        if (sliceNoUniformLocation) {
+
+            this.setState({xSliceNoUniform: sliceNoUniformLocation});
+            console.log('set slice no uniform');
+            gl.uniform1i(
+                sliceNoUniformLocation,
+                50,
+            );
+        }
         switch (plane) {
           case 'x':
             gl.uniform2f(
@@ -438,42 +346,48 @@ export class Viewer extends React.Component {
             break;
         }
 
+        /*
         // this.setState({ctx: ctx, dataview: new DataView(this.props.rawData), minIntensity: min, maxIntensity: max, gl: gl});
         console.log('draw frame');
         console.log('on context create');
+        */
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-        gl.clearColor(0, 1, 1, 1);
+        gl.clearColor(0, 1, 0, 1);
 
         // Create vertex shader (shape & position)
         const vert = gl.createShader(gl.VERTEX_SHADER);
         gl.shaderSource(
           vert,
           `
-          attribute vec2 a_screenpos;
+          attribute vec2 a_position;
+          uniform int u_sliceno;
           uniform vec2 u_resolution;
-          uniform float u_pixelsize;
-
-          attribute float a_intensity; 
-
-          attribute float a_crosshairs;
-          varying float v_crosshairs;
-
-          // send (x, y, z) and (intensity)
-          // to the fragment shader
-          varying vec3 v_worldpos;
-          varying float v_intensity;
+          uniform vec3 u_spacesize;
+          varying vec3 texCoord;
 
 
           void main(void) {
-            vec2 normalize_to_one = a_screenpos / u_resolution;
+            vec2 normalize_to_one = a_position / u_resolution;
             vec2 normalize_to_two = normalize_to_one * 2.0;
             vec2 normalize_to_clipspace = normalize_to_two - 1.0;
 
             gl_Position = vec4(normalize_to_clipspace * vec2(1, -1), 0, 1);
+            // screen x = yspace, screen y = zspace
+            // order in file is x, z, y
+            // This means the texture coordinate is:
+            // (x [calculated], zspace = screen y, yspace = screen x)
+
+            // NOTE: TRIAL AND ERROR
+            float aplane = normalize_to_one.x;
+            float bplane = normalize_to_one.y;
+            float cplane = float(u_sliceno) / float(u_spacesize.x);
+            texCoord = vec3(float(u_sliceno) / float(u_spacesize.x), normalize_to_one.yx);
+            /*
             gl_PointSize = u_pixelsize; 
             // v_worldpos = a_worldpos.xyz;
             v_intensity = a_intensity;
             v_crosshairs = a_crosshairs;
+            */
           }
         `
         );
@@ -491,28 +405,14 @@ export class Viewer extends React.Component {
         gl.shaderSource(
           frag,
           `
+          #extension GL_OES_texture_3D : enable
+          precision mediump sampler3D;
           precision mediump float;
+          uniform sampler3D u_image;
 
-          uniform vec2 u_datarange;
-
-          uniform vec3 u_spacesize;
-
-          varying float v_intensity;
-
-          // location of the crosshairs in clipspace
-          varying float v_crosshairs;
-
+          varying vec3 texCoord;
           void main(void) {
-              float min = u_datarange.x;
-              float max = u_datarange.y;
-              float val = (v_intensity - min) / (max-min);
-
-              if (v_crosshairs > 0.0) {
-                  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-              } else {
-                  gl_FragColor = vec4(val, val, val, 1.0);
-              }
-
+              gl_FragColor = texture3D(u_image, texCoord).rgba;
           }
         `
         );
@@ -538,10 +438,45 @@ export class Viewer extends React.Component {
             throw new Error("Could not link program: " + msg);
         }
                        
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        const positions = [
+            0, 0,
+            0, this.props.headers.yspace.space_length,
+            this.props.headers.zspace.space_length, 0,
+
+            this.props.headers.zspace.space_length, 0,
+            this.props.headers.zspace.space_length, this.props.headers.yspace.space_length,
+            0, this.props.headers.yspace.space_length,
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
         gl.useProgram(program);
+        gl.enableVertexAttribArray(positionAttributeLocation);
+        this.calculateDisplayUniforms(gl, program, plane);
+        // Bind the position buffer.
+         
+            // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+        var size = 2;          // 2 components per iteration
+        var type = gl.FLOAT;   // the data is 32bit floats
+        var normalize = false; // don't normalize the data
+        var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
+        var offset = 0;        // start at the beginning of the buffer
+        gl.vertexAttribPointer(
+                positionAttributeLocation, size, type, normalize, stride, offset)
+
+        this.loadIntensityTexture(gl, data);
+        var primitiveType = gl.TRIANGLES;
+        var offset = 0;
+        var count = 6;
+        gl.drawArrays(primitiveType, offset, count);
+        gl.flush();
+        gl.endFrameEXP();
+        /*
 
         this.populateScreenPosAttribute(gl, program, plane);
-        this.calculateDisplayUniforms(gl, program, plane);
 
         gl.clear(gl.COLOR_BUFFER_BIT);
         var datarangeUniformLocation = gl.getUniformLocation(program, "u_datarange");
@@ -552,14 +487,6 @@ export class Viewer extends React.Component {
         const crosshairsAttributeLocation = gl.getAttribLocation(program, "a_crosshairs");
         const crosshairsBuffer = gl.createBuffer();
         console.log('setting locations', plane, worldPositionAttributeLocation);
-
-        /*
-        const worldBufferBuffer = gl.createBuffer();
-
-        const worldAttributeLocation = gl.getAttribLocation(program, "a_worldpos");
-        gl.bufferData(gl.ARRAY_BUFFER, [], gl.DYNAMIC_DRAW);
-        gl.enableVertexAttribArray(worldAttributeLocation);
-        */
 
         switch (plane) {
           case 'x': 
@@ -589,6 +516,7 @@ export class Viewer extends React.Component {
         }
 
         this.refreshAllPanels();
+        */
         return;
     }
 }
