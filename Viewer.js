@@ -66,6 +66,7 @@ export function Viewer({rawData, headers}) {
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center'}}>
         <PlaneViewer data={data} plane='z' headers={headers}
             SliceNo={coord.z}
+            label="Sagittal"
             onSliceChange={
                 (value) => {
                     setCoord({...coord, z: value})
@@ -75,6 +76,7 @@ export function Viewer({rawData, headers}) {
         />
         <PlaneViewer data={data} plane='x' headers={headers}
             SliceNo={coord.x}
+            label="Coronal"
             onSliceChange={
                 (value) => {
                     setCoord({...coord, x: value})
@@ -85,6 +87,7 @@ export function Viewer({rawData, headers}) {
         <PlaneViewer data={data}
             headers={headers}
             plane='y' 
+            label="Axial"
             SliceNo={coord.y}
             onSliceChange={
                 (value) => {
