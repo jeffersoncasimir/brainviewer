@@ -1,82 +1,35 @@
-import React from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import { Pressable, View, Text } from 'react-native';
 import { GLView } from 'expo-gl';
 import Expo2DContext from "expo-2d-context";
 import { SegmentSlider } from './SegmentSlider';
 
-export class PlaneViewer extends React.Component {
-    constructor(props) {
-        super(props);
-        this.state = {
-            gl: null,
-            SliceNumUniform: null,
-        };
-
-        if (!props.headers) {
-            return;
-        }
-    }
-    handleSliderChange = (newValue) => {
-        this.props.onSliceChange(newValue);
-        let gl = this.state.gl;
-        let sliceNumUniform = this.state.SliceNumUniform;
-
-        if (gl && sliceNumUniform) {
-          gl.uniform1i(
-            sliceNumUniform,
-            newValue,
-          );
-        }
-        if (gl) {
-          this.draw(gl);
-        }
+function getScreenPlanes(plane, headers) {
+  switch (plane) {
+  case 'x':
+    return {
+      screenX: headers.yspace.space_length,
+      screenY: headers.zspace.space_length
     };
+  case 'y':
+    return {
+      screenX: headers.xspace.space_length,
+      screenY: headers.zspace.space_length
+    };
+  case 'z':
+    return {
+      screenX: headers.xspace.space_length,
+      screenY: headers.yspace.space_length
+    };
+  default:
+    throw new Error("Unhandled plane");
+  }
+}
 
-    render() {
-      if( !this.props.headers) {
-        return <View><Text>Loading headers..</Text></View>;
-      }
-      if (!this.props.data){
-        return <View><Text>Loading data..</Text></View>
-      }
-
-      let sliderMax = 100;
-      switch(this.props.plane) {
-      case 'x':
-        sliderMax = this.props.headers.xspace.space_length;
-        break;
-      case 'y':
-        sliderMax = this.props.headers.yspace.space_length;
-        break;
-      case 'z':
-        sliderMax = this.props.headers.zspace.space_length;
-        break;
-      default:
-        throw new Error("Invalid plane");
-      }
-
-      // FIXME: Make this dynamic
-      const viewWidth = 350;
-      const viewHeight = 400;
-      this.draw(this.state.gl);
-      return (
-        <View style={{flex: 1, justifyContent: 'center', flexDirection: 'column', alignItems: 'center'}}>
-          <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
-                onContextCreate={this.onContextCreate} />
-          <SegmentSlider
-               val={this.props.SliceNo}
-               max={sliderMax}
-               label={this.props.label}
-               onSliderChange={this.handleSliderChange}
-          />
-        </View>
-      );
-    }
-
-    loadIntensityTexture = (gl, data) => {
-      const xsize = this.props.headers.xspace.space_length;
-      const ysize = this.props.headers.yspace.space_length;
-      const zsize = this.props.headers.zspace.space_length;
+function loadIntensityTexture(gl, headers, data) {
+      const xsize = headers.xspace.space_length;
+      const ysize = headers.yspace.space_length;
+      const zsize = headers.zspace.space_length;
       const texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_3D, texture);
 
@@ -103,62 +56,25 @@ export class PlaneViewer extends React.Component {
       gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, ysize, zsize, xsize, 0, gl.RED, gl.UNSIGNED_BYTE, values);
     }
 
-    getScreenPlanes = () => {
-        switch (this.props.plane) {
-          case 'x':
-            return {
-                screenX: this.props.headers.yspace.space_length,
-                screenY: this.props.headers.zspace.space_length
-            };
-          case 'y':
-            return {
-                screenX: this.props.headers.xspace.space_length,
-                screenY: this.props.headers.zspace.space_length
-            };
-          case 'z':
-            return {
-                screenX: this.props.headers.xspace.space_length,
-                screenY: this.props.headers.yspace.space_length
-            };
-          default:
-            throw new Error("Unhandled plane");
-        }
-    }
-    calculateDisplayUniforms = (gl, program) => {
-        const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
-        const spaceSizeUniformLocation = gl.getUniformLocation(program, "u_spacesize");
-        if (spaceSizeUniformLocation) {
-            // FIXME: Determine if these should pivot around the plane we're looking at.
-            gl.uniform3f(
-                spaceSizeUniformLocation,
-                this.props.headers.xspace.space_length,
-                this.props.headers.yspace.space_length,
-                this.props.headers.zspace.space_length,
-            );
+function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
+    const [gl, setGl] = useState(null);
+    const draw = useCallback(() => {
+        if (!gl) {
+            // console.warn('No gl');
+            return;
         } 
-        const sliceNoUniformLocation = gl.getUniformLocation(program, "u_sliceno");
-        if (sliceNoUniformLocation) {
-            // FIXME: Use the middle slice of the plane we're looking at.
-            gl.uniform1i(
-                sliceNoUniformLocation,
-                50,
-            );
-        }
+        // We draw the 1 square which consists of 2 triangles
+        // covering the whole viewport. The program set up
+        // a_position in onContextCreate
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+        gl.flush();
+        gl.endFrameEXP();
+    }, [gl]);
+    const [sliceNumUniform, setSliceNumUniform] = useState(null);
+    const [crosshairsUniform, setCrosshairsUniform] = useState(null);
+    const onContextCreate = useCallback( (gl) => {
+        setGl(gl);
 
-        // Set the resolution for the x and y axis of the
-        // screen based on the plane that we're rendering.
-        const {screenX, screenY} = this.getScreenPlanes();
-
-        gl.uniform2f(
-          resolutionUniformLocation,
-          screenX,
-          screenY,
-        );
-        this.setState({gl: gl, SliceNumUniform: sliceNoUniformLocation});
-    }
-    
-    onContextCreate = (gl) => {
-        const data = this.props.data;
         const compileShader = (type, src) => {
           const shader = gl.createShader(type);
           gl.shaderSource(shader, src);
@@ -172,6 +88,7 @@ export class PlaneViewer extends React.Component {
           }
           return shader;
         };
+
         const linkProgram = (vertex, fragment) => {
           const program = gl.createProgram();
           gl.attachShader(program, vert);
@@ -186,12 +103,10 @@ export class PlaneViewer extends React.Component {
           return program;
         };
 
-        this.setState({gl: gl});
-
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
         gl.clearColor(0, 1, 0, 1);
 
-        // Create vertex shader (shape & position)
+        // Create the vertex shader (position & size)
         const vert = compileShader(gl.VERTEX_SHADER, 
           `
           // We draw 2 triangles that cover the entire viewport. a_position
@@ -229,7 +144,7 @@ export class PlaneViewer extends React.Component {
 
             gl_Position = vec4(normalize_to_clipspace * vec2(1, -1), 0, 1);
 
-            float fixed_plane = float(u_sliceno) / float(u_spacesize.` + this.props.plane + `);
+            float fixed_plane = float(u_sliceno) / float(u_spacesize.` + plane + `);
             // XXX: Decide if we should have u_plane or if we should
             // just dynamically generate the texCoord part of the shader
             // code based on this.props.plane
@@ -263,13 +178,13 @@ export class PlaneViewer extends React.Component {
           }
         `
         );
-        // Create fragment shader (color)
 
+        // Create fragment shader (color)
         const texCoordSrc = (plane) => {
             switch(plane) {
             case 'x':
                 return `
-                float delta = ` + (1 / this.props.headers.yspace.space_length) +  ` / 2.0;
+                float delta = ` + (1 / headers.yspace.space_length) +  ` / 2.0;
                 if (
                   ((texCoord.y > (v_crosshairs.x - delta)) &&
                   (texCoord.y < (v_crosshairs.x + delta)))
@@ -285,7 +200,7 @@ export class PlaneViewer extends React.Component {
                 `;
             case 'y':
                 return `
-                float delta = ` + (1 / this.props.headers.xspace.space_length) +  ` / 2.0;
+                float delta = ` + (1 / headers.xspace.space_length) +  ` / 2.0;
                 if (
                   ((texCoord.x > (v_crosshairs.x - delta)) &&
                   (texCoord.x < (v_crosshairs.x + delta)))
@@ -301,7 +216,7 @@ export class PlaneViewer extends React.Component {
                 `;
             case 'z':
                 return `
-                float delta = ` + (1 / this.props.headers.xspace.space_length) +  ` / 2.0;
+                float delta = ` + (1 / headers.xspace.space_length) +  ` / 2.0;
                 if (
                   ((texCoord.x > (v_crosshairs.x - delta)) &&
                   (texCoord.x < (v_crosshairs.x + delta)))
@@ -320,6 +235,7 @@ export class PlaneViewer extends React.Component {
             }
             return ' BAD PLANE' ;
         }
+
         const frag= compileShader(gl.FRAGMENT_SHADER, 
           `
           #extension GL_OES_texture_3D : enable
@@ -342,7 +258,7 @@ export class PlaneViewer extends React.Component {
           }
 
           void main(void) {
-              ` + texCoordSrc(this.props.plane) + `
+              ` + texCoordSrc(plane) + `;
           }
         `
         );
@@ -353,7 +269,8 @@ export class PlaneViewer extends React.Component {
         const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        const {screenX, screenY} = this.getScreenPlanes();
+        const {screenX, screenY} = getScreenPlanes(plane, headers);
+        console.log('Screen X/Y:', screenX, screenY);
         // FIXME: These are plane dependent. Switch on this.props.plane
         const positions = [
             0, 0,
@@ -367,9 +284,6 @@ export class PlaneViewer extends React.Component {
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
         gl.useProgram(program);
         gl.enableVertexAttribArray(positionAttributeLocation);
-
-        this.calculateDisplayUniforms(gl, program);
-         
         gl.vertexAttribPointer(
             positionAttributeLocation,
             2,
@@ -379,10 +293,46 @@ export class PlaneViewer extends React.Component {
             0,
         );
 
-        this.loadIntensityTexture(gl, data);
+
+        // Calculate display uniforms
+        const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+        const spaceSizeUniformLocation = gl.getUniformLocation(program, "u_spacesize");
+        if (spaceSizeUniformLocation) {
+            // FIXME: Determine if these should pivot around the plane we're looking at.
+            gl.uniform3f(
+                spaceSizeUniformLocation,
+                headers.xspace.space_length,
+                headers.yspace.space_length,
+                headers.zspace.space_length,
+            );
+        } 
+        const sliceNoUniformLocation = gl.getUniformLocation(program, "u_sliceno");
+        if (sliceNoUniformLocation) {
+            setSliceNumUniform(sliceNoUniformLocation);
+            // FIXME: Use the middle slice of the plane we're looking at.
+            gl.uniform1i(
+                sliceNoUniformLocation,
+                50,
+            );
+        }
+
+        // Set the resolution for the x and y axis of the
+        // screen based on the plane that we're rendering.
+        gl.uniform2f(
+          resolutionUniformLocation,
+          screenX,
+          screenY,
+        );
+        const crosshairsUniformLocation = gl.getUniformLocation(program, "u_crosshairs");
+        if (crosshairsUniformLocation) {
+            setCrosshairsUniform(crosshairsUniformLocation)
+        }
+
+        loadIntensityTexture(gl, headers, data);
+
         const planeLocation = gl.getUniformLocation(program, "u_plane");
         if (planeLocation) {
-            switch(this.props.plane) {
+            switch(plane) {
             case 'x':
                 gl.uniform1i(planeLocation, 1);
                 break;
@@ -396,33 +346,78 @@ export class PlaneViewer extends React.Component {
                 throw new Error('Invalid plane');
             }
         }
-        const crosshairsLocation = gl.getUniformLocation(program, "u_crosshairs");
-        this.setState({CrossHairsUniform: crosshairsLocation});
-        this.draw(gl);
-    }
 
-    setCrosshairsUniform = (gl, value) => {
-        if (!gl) {
-            console.warn('No gl set');
-            return;
-        }
-        if (!this.state.CrossHairsUniform) {
-            // console.warn('No crosshairs uniform set', this.state);
-            return;
-        }
-        gl.uniform2f(this.state.CrossHairsUniform, this.props.crosshairs.x, this.props.crosshairs.y);
-    }
+        draw();
 
-    draw = (gl) => {
+    }, [headers, data, plane, draw]);
+    const setSliceNum = useCallback( (newValue) => {
+        if (gl && sliceNumUniform) {
+          gl.uniform1i(
+            sliceNumUniform,
+            newValue,
+          );
+        }
+        draw();
+    }, [gl, sliceNumUniform, draw]);
+    const setCrosshairs = useCallback( (crosshairs) => {
         if (!gl) {
+            console.warn('No gl set for crosshairs');
             return;
         }
-        // We draw the 1 square which consists of 2 triangles
-        // covering the whole viewport. The program set up
-        // a_position in onContextCreate
-        this.setCrosshairsUniform(gl, this.props.crosshairs);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-        gl.flush();
-        gl.endFrameEXP();
+        if (!crosshairsUniform) {
+            console.warn('No crosshairs uniform set');
+            return;
+        }
+        gl.uniform2f(crosshairsUniform, crosshairs.x, crosshairs.y);
+        draw();
+    }, [gl, draw, crosshairsUniform]);
+    return {
+        setSliceNum: setSliceNum,
+        setCrosshairs: setCrosshairs,
+        canvas:  <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
+                onContextCreate={onContextCreate} />
+    };
+}
+export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange, crosshairs}) {
+    // FIXME: Width and height shouldn't be fixed values
+    const {setSliceNum, canvas, setCrosshairs}  = useGLCanvas(350, 400, headers, data, plane);
+    const onSliderChange = useCallback( (newValue) => {
+        onSliceChange(newValue);
+
+        setSliceNum(newValue);
+
+    }, [setSliceNum]);
+    if (!headers || !data) {
+        return <View><Text>Loading..</Text></View>;
     }
+    useEffect( () => {
+        setCrosshairs(crosshairs);
+    }, [crosshairs, setCrosshairs]);
+
+    let sliderMax = 100;
+    switch(plane) {
+    case 'x':
+      sliderMax = headers.xspace.space_length;
+      break;
+    case 'y':
+      sliderMax = headers.yspace.space_length;
+      break;
+    case 'z':
+      sliderMax = headers.zspace.space_length;
+      break;
+    default:
+      throw new Error("Invalid plane");
+    }
+    return (
+
+      <View style={{flex: 1, justifyContent: 'center', flexDirection: 'column', alignItems: 'center', margin: 20,}}>
+         <Text>{label} (Size: {sliderMax})</Text>
+         {canvas}
+         <SegmentSlider
+           val={SliceNo}
+           max={sliderMax}
+           onSliderChange={onSliderChange}
+         />
+      </View>
+    );
 }
