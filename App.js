@@ -37,7 +37,8 @@ export default function App() {
     req.setRequestHeader('Authorization', 'Bearer ' + token);
     req.onload = (evt) => {
         if (req.status < 200 || req.status >= 300) {
-            SecureStore.setItemAsync(key, null);
+            console.log('response status', req.status);
+            SecureStore.deleteItemAsync('loris_token', null);
             setToken(null);
             return;
         }
