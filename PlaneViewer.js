@@ -60,7 +60,7 @@ export class PlaneViewer extends React.Component {
       const viewHeight = 400;
       this.draw(this.state.gl);
       return (
-        <View style={{backgroundColor: 'pink', flex: 1, justifyContent: 'center', flexDirection: 'column', alignItems: 'center'}}>
+        <View style={{flex: 1, justifyContent: 'center', flexDirection: 'column', alignItems: 'center'}}>
           <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
                 onContextCreate={this.onContextCreate} />
           <SegmentSlider

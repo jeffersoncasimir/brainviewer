@@ -9,7 +9,7 @@ export function SegmentSlider(props) {
 
   const label = props.label ? <View><Text>{props.label}</Text></View> : null;
   return (
-    <View>
+    <View style={{flex: 1, flexDirection: 'column'}}>
       {label}
       <Slider
         aria-label={label}
@@ -20,7 +20,7 @@ export function SegmentSlider(props) {
         style={{ width: sliderWidth }}
         valueLabelDisplay="on"
       />
-      <View>
+      <View style={{flex: 1, flexDirection: 'row', justifyContent: 'center'}}>
         <Text>{props.val}</Text>
       </View>
 	</View>
