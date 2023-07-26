@@ -58,8 +58,21 @@ export function Viewer({rawData, headers}) {
       return <View><Text>Loading raw data..</Text></View>
     }
 
+    // These have the fixed plane be z, x, y so that they're the
+    // same direction brainbrowser shows it in the LORIS imaging browser
+    // This was reached by trial and error with 1 sample file and
+    // is not reliable
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+        <PlaneViewer data={data} plane='z' headers={headers}
+            SliceNo={coord.z}
+            onSliceChange={
+                (value) => {
+                    setCoord({...coord, z: value})
+                }
+            }
+            crosshairs={ {x: coord.x, y: coord.y} }
+        />
         <PlaneViewer data={data} plane='x' headers={headers}
             SliceNo={coord.x}
             onSliceChange={
@@ -80,15 +93,6 @@ export function Viewer({rawData, headers}) {
             }
             crosshairs={ {x: coord.x, y: coord.z} }
            />
-        <PlaneViewer data={data} plane='z' headers={headers}
-            SliceNo={coord.z}
-            onSliceChange={
-                (value) => {
-                    setCoord({...coord, z: value})
-                }
-            }
-            crosshairs={ {x: coord.x, y: coord.y} }
-        />
       </View>
     );
 }
