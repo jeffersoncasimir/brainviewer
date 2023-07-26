@@ -99,7 +99,7 @@ export class PlaneViewer extends React.Component {
       // in the vertex shader.
       // XXX: This needs to be tested with files that have the
       // x, y, and z order in different orders as per MincLoader.js.
-      console.log('xsize, ysize, zsize = ', xsize, ysize, zsize);
+      // console.log('xsize, ysize, zsize = ', xsize, ysize, zsize);
       gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, ysize, zsize, xsize, 0, gl.RED, gl.UNSIGNED_BYTE, values);
     }
 
@@ -149,9 +149,6 @@ export class PlaneViewer extends React.Component {
         // screen based on the plane that we're rendering.
         const {screenX, screenY} = this.getScreenPlanes();
 
-        if (this.props.plane == 'y') {
-            console.log('y: screenX', screenX, 'screenY', screenY);
-        }
         gl.uniform2f(
           resolutionUniformLocation,
           screenX,
@@ -241,17 +238,23 @@ export class PlaneViewer extends React.Component {
                 // u_plane 1 == xplane is fixed.
                 // normalized_to_one.x = screenX = y plane in texture
                 // normalized_to_one.y = screenY = z plane in texture
-                texCoord = vec3(fixed_plane, normalize_to_one.xy);
+                // we swap x/y in the texture to mirror the orientation
+                // of brainbrowser in our sample file.
+                texCoord = vec3(fixed_plane, normalize_to_one.yx);
             } else if (u_plane == 2) {
                 // u_plane 2 == yplane is fixed
                 // normalized_to_one.x = screenX = x plane in texture
                 // normalized_to_one.y = screenY = z plane in texture
-                texCoord = vec3(normalize_to_one.x, fixed_plane, normalize_to_one.y);
+                // we swap x/y to mirror the orientation of brainbrowser
+                // on our sample file
+                texCoord = vec3(normalize_to_one.y, fixed_plane, normalize_to_one.x);
             } else if (u_plane == 3) {
                 // plane 3 == zplane is fixed
                 // normalized_to_one.x = screenX = x plane in texture
                 // normalized_to_one.y = screenY = z plane in texture
-                texCoord = vec3(normalize_to_one.xy, fixed_plane);
+                // we flip left/right one the x-axis to mirror the 
+                // orientation of brainbrowser with our sample file.
+                texCoord = vec3(1.0 - normalize_to_one.x, normalize_to_one.y, fixed_plane);
             } else {
                 // Make it obvious there's an error if
                 // the plane isn't set.
@@ -265,7 +268,6 @@ export class PlaneViewer extends React.Component {
         const texCoordSrc = (plane) => {
             switch(plane) {
             case 'x':
-            console.log('space', this.props.headers.yspace.space_length)
                 return `
                 float delta = ` + (1 / this.props.headers.yspace.space_length) +  ` / 2.0;
                 if (
@@ -362,9 +364,6 @@ export class PlaneViewer extends React.Component {
             screenX, screenY,
             0, screenY,
         ];
-        if (this.props.plane == 'y') {
-            console.log('y positions', positions)
-        }
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
         gl.useProgram(program);
         gl.enableVertexAttribArray(positionAttributeLocation);
@@ -408,10 +407,9 @@ export class PlaneViewer extends React.Component {
             return;
         }
         if (!this.state.CrossHairsUniform) {
-            console.warn('No crosshairs uniform set', this.state);
+            // console.warn('No crosshairs uniform set', this.state);
             return;
         }
-        console.log(this.state, this.props.crosshairs);
         gl.uniform2f(this.state.CrossHairsUniform, this.props.crosshairs.x, this.props.crosshairs.y);
     }
 
