@@ -63,10 +63,11 @@ function loadIntensityTexture(gl, headers, data) {
 
 
 function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
-    console.log('in useGLCanvas');
     const [gl, setGl] = useState(null);
     const [zoomFactor, setZoomFactor] = useState(1.0);
+    const [offsetPos, setOffsetPos] = useState({x: 0, y: 0});
     const [zoomUniform, setZoomUniform] = useState(null);
+    const [viewOffsetUniform, setViewOffsetUniform] = useState(null);
     const draw = useCallback(() => {
         if (!gl) {
             console.warn('No gl in draw');
@@ -85,7 +86,7 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
             return;
         }
         if (zoomUniform) {
-            console.log('setting zoom to', newZoom);
+          console.log('setting zoom to', newZoom);
           gl.uniform1f(zoomUniform, newZoom);
         } else {
           console.warn('No zoom uniform', zoomUniform);
@@ -98,6 +99,24 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         console.log('scale change', scaleChange, zoomFactor);
         return setZoomFactorCB(scaleChange*zoomFactor);
     }, [setZoomFactorCB, zoomFactor]);
+    const setViewOffsetCB = useCallback((x, y) => {
+        if (!gl) {
+            console.warn('No gl in setViewOffsetCB');
+            return;
+        }
+        setOffsetPos({x: x, y: y});
+        if (viewOffsetUniform) {
+            console.log('Setting ', viewOffsetUniform, x, y);
+            gl.uniform2f(viewOffsetUniform, x, y);
+        } else {
+            console.warn('No view offset uniform');
+        }
+        draw();
+    }, [gl, viewOffsetUniform, setOffsetPos, draw]);
+    const panOffset = useCallback( (dx, dy) => {
+        console.log('panning', dx, dy);
+        return setViewOffsetCB(offsetPos.x + dx, offsetPos.y + dy);
+    }, [setViewOffsetCB, offsetPos]);
     const [sliceNumUniform, setSliceNumUniform] = useState(null);
     const [crosshairsUniform, setCrosshairsUniform] = useState(null);
     const onContextCreate = useCallback( (gl) => {
@@ -107,7 +126,6 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         const compileShader = (type, src) => {
           const shader = gl.createShader(type);
           gl.shaderSource(shader, src);
-
           gl.compileShader(shader);
           const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
           if (!success) {
@@ -142,6 +160,7 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
           // is the screen coordinate of the vertex for the triangle passed
           // by drawarray with gl.TRIANGLES
           attribute vec2 a_position;
+          uniform vec2 u_viewoffset;
 
           // The slice number that we're looking that.
           uniform int u_sliceno;
@@ -167,9 +186,9 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
 
 
           void main(void) {
-            vec2 normalize_to_one = (a_position / u_resolution);
+            vec2 normalize_to_one = ((a_position) / u_resolution);
             vec2 normalize_to_two = normalize_to_one * 2.0;
-            vec2 normalize_to_clipspace = (normalize_to_two - 1.0) * vec2(u_zoom, u_zoom);
+            vec2 normalize_to_clipspace = ((normalize_to_two - 1.0) * vec2(u_zoom, u_zoom));
 
 
             gl_Position = vec4(normalize_to_clipspace * vec2(1, -1), 0, 1);
@@ -185,21 +204,21 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
                 // normalized_to_one.y = screenY = z plane in texture
                 // we swap x/y in the texture to mirror the orientation
                 // of brainbrowser in our sample file.
-                texCoord = vec3(fixed_plane, normalize_to_one.yx);
+                texCoord = vec3(fixed_plane, normalize_to_one.yx + u_viewoffset);
             } else if (u_plane == 2) {
                 // u_plane 2 == yplane is fixed
                 // normalized_to_one.x = screenX = x plane in texture
                 // normalized_to_one.y = screenY = z plane in texture
                 // we swap x/y to mirror the orientation of brainbrowser
                 // on our sample file
-                texCoord = vec3(normalize_to_one.y, fixed_plane, normalize_to_one.x);
+                texCoord = vec3(normalize_to_one.y + u_viewoffset.x, fixed_plane, normalize_to_one.x + u_viewoffset.y);
             } else if (u_plane == 3) {
                 // plane 3 == zplane is fixed
                 // normalized_to_one.x = screenX = x plane in texture
                 // normalized_to_one.y = screenY = z plane in texture
                 // we flip left/right one the x-axis to mirror the 
                 // orientation of brainbrowser with our sample file.
-                texCoord = vec3(1.0 - normalize_to_one.x, normalize_to_one.y, fixed_plane);
+                texCoord = vec3(1.0 - normalize_to_one.x + u_viewoffset.x, normalize_to_one.y + u_viewoffset.y, fixed_plane);
             } else {
                 // Make it obvious there's an error if
                 // the plane isn't set.
@@ -325,7 +344,6 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
 
 
         // Calculate display uniforms
-        const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
         const spaceSizeUniformLocation = gl.getUniformLocation(program, "u_spacesize");
         if (spaceSizeUniformLocation) {
             // FIXME: Determine if these should pivot around the plane we're looking at.
@@ -354,13 +372,25 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
             console.log('No u_zoom');
         }
 
+        const viewOffsetUniformLocation = gl.getUniformLocation(program, "u_viewoffset");
+        if (viewOffsetUniformLocation) {
+            console.log('setting offset uniform', viewOffsetUniformLocation);
+            setViewOffsetUniform(viewOffsetUniformLocation);
+            gl.uniform2f(viewOffsetUniformLocation, 0.0, 0.0);
+        } else {
+            console.log('No u_viewoffset');
+        }
+
         // Set the resolution for the x and y axis of the
         // screen based on the plane that we're rendering.
-        gl.uniform2f(
-          resolutionUniformLocation,
-          screenX,
-          screenY,
-        );
+        const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+        if (resolutionUniformLocation) {
+            gl.uniform2f(
+              resolutionUniformLocation,
+              screenX,
+              screenY,
+            );
+        }
         const crosshairsUniformLocation = gl.getUniformLocation(program, "u_crosshairs");
         if (crosshairsUniformLocation) {
             setCrosshairsUniform(crosshairsUniformLocation)
@@ -417,7 +447,9 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         canvas: canvas,
         scaleZoomFactor: scaleZoomFactor,
         setZoomFactor: setZoomFactorCB,
-        zoomFactor: zoomFactor
+        zoomFactor: zoomFactor,
+        panViewport: panOffset,
+        setViewOffset: setViewOffsetCB
     };
 }
 
@@ -457,7 +489,7 @@ function calculateTouchPos(plane, headers, sliceNo, zoomFactor, canvasSize, x, y
 export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange, crosshairs, setPosition, onGestureStart, onGestureEnd}) {
     // FIXME: Width and height shouldn't be fixed values
     const canvasSize = {x: 350, y: 400};
-    const {setSliceNum, canvas, setCrosshairs, zoomFactor, scaleZoomFactor, setZoomFactor}  = useGLCanvas(canvasSize.x, canvasSize.y, headers, data, plane);
+    const {setSliceNum, canvas, setCrosshairs, zoomFactor, scaleZoomFactor, setZoomFactor, panViewport, setViewOffset}  = useGLCanvas(canvasSize.x, canvasSize.y, headers, data, plane);
     const onSliderChange = useCallback( (newValue) => {
         onSliceChange(newValue);
 
@@ -467,31 +499,38 @@ export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange
 
     const gestures = useMemo( () => {
         const pinch = Gesture.Pinch().onChange( (pinch) => {
-            console.log('pinch', pinch.scaleChange);
             scaleZoomFactor(pinch.scaleChange);
-        })
-        .onBegin(onGestureStart)
-        .onEnd(onGestureEnd);
-        const pan = Gesture.Pan().onBegin( () => {
-            onGestureStart();
-            console.log('Pan begin event');
-        }).maxPointers(1)
-        .onChange( (pan) => {
+        }).onBegin(onGestureStart).onEnd(onGestureEnd);
+        const pan = Gesture.Pan()
+            .onBegin(onGestureStart)
+            .maxPointers(1)
+            .onChange( (pan) => {
             if (zoomFactor == 1.0) {
-                console.log(pan);
-                // No zoom factor treat it as a tap.
+                // No zoom factor, treat it as a tap and snap to
+                // those coordinates.
                 const pos = calculateTouchPos(plane, headers, SliceNo, zoomFactor, canvasSize, pan.x, pan.y);
                 setPosition(pos.x, pos.y, pos.z);
             } else {
-                const screenPlanes = getScreenPlanes(plane, headers);
-                console.log('pan change event while zoomed', pan);
+                // There is a zoom factor. Pan the viewport.
+                // Since the shader does weird things to match
+                // the orientation of brainbrowser, we need to
+                // factor this into the pan direction here.
+                switch(plane) {
+                case 'x':
+                    // swap x/y to match the shader
+                    panViewport((-pan.changeY / zoomFactor) / 500, (-pan.changeX / zoomFactor) / 500);
+                    break;
+                case 'y':
+                    // swap x/y to match the shader
+                    panViewport((-pan.changeY / zoomFactor) / 500, (-pan.changeX / zoomFactor) / 500);
+                    break;
+                case 'z':
+                    panViewport((pan.changeX / zoomFactor) / 500, -(pan.changeY / zoomFactor) / 500);
+                    break;
+                }
             }
-        }).onUpdate( () => {
-            console.log('pan update event');
-        }).onEnd( () => {
-            onGestureEnd();
-            console.log('pan end event');
-        });
+        })
+        .onEnd(onGestureEnd);
         const tap = Gesture.Tap().onBegin(onGestureStart).onEnd( (evt) => {
             if (onGestureEnd) 
                 onGestureEnd();
@@ -499,20 +538,19 @@ export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange
             if (zoomFactor == 1.0) {
 
                 const pos = calculateTouchPos(plane, headers, SliceNo, zoomFactor, canvasSize, evt.x, evt.y);
-                console.log('pos', pos)
                 setPosition(pos.x, pos.y, pos.z);
             }
-            console.log('Tap end', evt);
         });
-        const longPress = Gesture.LongPress().onBegin(onGestureStart).
-        onEnd( () => {
+        const longPress = Gesture.LongPress().onBegin(onGestureStart)
+        .onEnd( () => {
+            setViewOffset(0.0, 0.0)
             setZoomFactor(1.0);
             onGestureEnd();
         });
         return Gesture.Race(
+            longPress,
             pinch,
             pan,
-            longPress,
             tap,
         );
     });
