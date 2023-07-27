@@ -31,7 +31,7 @@ function preprocess(rawdata) {
   }
 }
 
-export function Viewer({rawData, headers}) {
+export function Viewer({rawData, headers, onGestureStart, onGestureEnd}) {
     const [data, setData] = useState(null);
     const [coord, setCoord] = useState({x: 0, y: 0, z: 0});
     useEffect( () => {
@@ -62,7 +62,7 @@ export function Viewer({rawData, headers}) {
     // same direction brainbrowser shows it in the LORIS imaging browser
     // This was reached by trial and error with 1 sample file and
     // is not reliable
-    return (
+     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center'}}>
         <PlaneViewer data={data} plane='z' headers={headers}
             SliceNo={coord.z}
@@ -72,7 +72,12 @@ export function Viewer({rawData, headers}) {
                     setCoord({...coord, z: value})
                 }
             }
+            setPosition={ (x, y, z) => {
+                setCoord({x: x, y: y, z: z});
+            }}
             crosshairs={ {x: coord.x, y: coord.y} }
+            onGestureStart={onGestureStart}
+            onGestureEnd={onGestureEnd}
         />
         <PlaneViewer data={data} plane='x' headers={headers}
             SliceNo={coord.x}
@@ -82,10 +87,20 @@ export function Viewer({rawData, headers}) {
                     setCoord({...coord, x: value})
                 }
             }
+            setPosition={ (x, y, z) => {
+                setCoord({x: x, y: y, z: z});
+            }}
             crosshairs={ {x: coord.y, y: coord.z} }
+            onGestureStart={onGestureStart}
+            onGestureEnd={onGestureEnd}
             />
         <PlaneViewer data={data}
             headers={headers}
+            onGestureStart={onGestureStart}
+            onGestureEnd={onGestureEnd}
+            setPosition={ (x, y, z) => {
+                setCoord({x: x, y: y, z: z});
+            }}
             plane='y' 
             label="Axial"
             SliceNo={coord.y}

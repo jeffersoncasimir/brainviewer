@@ -1,5 +1,6 @@
-import React, {useState, useCallback, useEffect} from 'react';
-import { Pressable, View, Text } from 'react-native';
+import React, {useMemo, useRef, useState, useCallback, useEffect} from 'react';
+import { Gesture, GestureDetector} from 'react-native-gesture-handler';
+import { Pressable, View, Text, PanResponder } from 'react-native';
 import { GLView } from 'expo-gl';
 import Expo2DContext from "expo-2d-context";
 import { SegmentSlider } from './SegmentSlider';
@@ -43,8 +44,12 @@ function loadIntensityTexture(gl, headers, data) {
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      /*
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      */
        
       // Upload the image into the texture.
       // We use an R8 image so that one byte per voxel is sent
@@ -54,13 +59,17 @@ function loadIntensityTexture(gl, headers, data) {
       // x, y, and z order in different orders as per MincLoader.js.
       // console.log('xsize, ysize, zsize = ', xsize, ysize, zsize);
       gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, ysize, zsize, xsize, 0, gl.RED, gl.UNSIGNED_BYTE, values);
-    }
+}
+
 
 function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
+    console.log('in useGLCanvas');
     const [gl, setGl] = useState(null);
+    const [zoomFactor, setZoomFactor] = useState(1.0);
+    const [zoomUniform, setZoomUniform] = useState(null);
     const draw = useCallback(() => {
         if (!gl) {
-            // console.warn('No gl');
+            console.warn('No gl in draw');
             return;
         } 
         // We draw the 1 square which consists of 2 triangles
@@ -70,9 +79,29 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         gl.flush();
         gl.endFrameEXP();
     }, [gl]);
+    const setZoomFactorCB = useCallback( (newZoom) => {
+        if (!gl) {
+            console.log('No gl for setZoomFactorCB');
+            return;
+        }
+        if (zoomUniform) {
+            console.log('setting zoom to', newZoom);
+          gl.uniform1f(zoomUniform, newZoom);
+        } else {
+          console.warn('No zoom uniform', zoomUniform);
+        }
+        console.log(newZoom, 'newZoom');
+        setZoomFactor(newZoom);
+        draw();
+    }, [gl, zoomUniform, setZoomFactor]);
+    const scaleZoomFactor = useCallback( (scaleChange) => {
+        console.log('scale change', scaleChange, zoomFactor);
+        return setZoomFactorCB(scaleChange*zoomFactor);
+    }, [setZoomFactorCB, zoomFactor]);
     const [sliceNumUniform, setSliceNumUniform] = useState(null);
     const [crosshairsUniform, setCrosshairsUniform] = useState(null);
     const onContextCreate = useCallback( (gl) => {
+        console.log('set gl')
         setGl(gl);
 
         const compileShader = (type, src) => {
@@ -131,15 +160,16 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
           // The plane we're currently looking at.
           uniform int u_plane;
 
+          uniform float u_zoom;
           uniform vec2 u_crosshairs;
 
           varying vec2 v_crosshairs;
 
 
           void main(void) {
-            vec2 normalize_to_one = a_position / u_resolution;
+            vec2 normalize_to_one = (a_position / u_resolution);
             vec2 normalize_to_two = normalize_to_one * 2.0;
-            vec2 normalize_to_clipspace = normalize_to_two - 1.0;
+            vec2 normalize_to_clipspace = (normalize_to_two - 1.0) * vec2(u_zoom, u_zoom);
 
 
             gl_Position = vec4(normalize_to_clipspace * vec2(1, -1), 0, 1);
@@ -315,6 +345,14 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
                 50,
             );
         }
+        const zoomUniformLocation = gl.getUniformLocation(program, "u_zoom");
+        if (zoomUniformLocation) {
+            console.log('setting zoom uniform', zoomUniformLocation);
+            setZoomUniform(zoomUniformLocation);
+            gl.uniform1f(zoomUniformLocation, 1.0);
+        } else {
+            console.log('No u_zoom');
+        }
 
         // Set the resolution for the x and y axis of the
         // screen based on the plane that we're rendering.
@@ -348,7 +386,6 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         }
 
         draw();
-
     }, [headers, data, plane, draw]);
     const setSliceNum = useCallback( (newValue) => {
         if (gl && sliceNumUniform) {
@@ -361,38 +398,130 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
     }, [gl, sliceNumUniform, draw]);
     const setCrosshairs = useCallback( (crosshairs) => {
         if (!gl) {
-            console.warn('No gl set for crosshairs');
+            //console.warn('No gl set for crosshairs');
             return;
         }
         if (!crosshairsUniform) {
-            console.warn('No crosshairs uniform set');
+            // console.warn('No crosshairs uniform set');
             return;
         }
         gl.uniform2f(crosshairsUniform, crosshairs.x, crosshairs.y);
         draw();
     }, [gl, draw, crosshairsUniform]);
+    const canvas = useRef(<GLView collapsable={false} style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
+                onContextCreate={onContextCreate} />).current;
+
     return {
         setSliceNum: setSliceNum,
         setCrosshairs: setCrosshairs,
-        canvas:  <GLView style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
-                onContextCreate={onContextCreate} />
+        canvas: canvas,
+        scaleZoomFactor: scaleZoomFactor,
+        setZoomFactor: setZoomFactorCB,
+        zoomFactor: zoomFactor
     };
 }
-export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange, crosshairs}) {
+
+function calculateTouchPos(plane, headers, sliceNo, zoomFactor, canvasSize, x, y) {
+    if (zoomFactor != 1.0) {
+        throw new Error("Could not calculate ");
+    }
+
+    // No zoom factor makes the math easy.
+    const yscale = y / canvasSize.y;
+    const xscale = x / canvasSize.x;
+    switch(plane) {
+    case 'x': 
+      return {
+        x: sliceNo,
+         // the shader flipped the x and y.
+        y: Math.round(yscale*headers.yspace.space_length),
+        z: Math.round(xscale*headers.zspace.space_length),
+    };
+    case 'y':
+      return {
+          // the shader flipped the x and y.
+          z: Math.round(xscale*headers.zspace.space_length),
+          y: sliceNo,
+          x: Math.round(yscale*headers.xspace.space_length)
+      }
+    case 'z':
+      return {
+          x: headers.xspace.space_length - Math.round(xscale*headers.xspace.space_length), // the GPU mirroed the axis, so we need to invert the touch space.
+          y: Math.round(yscale*headers.yspace.space_length),
+          z: sliceNo}
+    default:
+      throw new Error("Unhandled plane");
+    }
+}
+
+export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange, crosshairs, setPosition, onGestureStart, onGestureEnd}) {
     // FIXME: Width and height shouldn't be fixed values
-    const {setSliceNum, canvas, setCrosshairs}  = useGLCanvas(350, 400, headers, data, plane);
+    const canvasSize = {x: 350, y: 400};
+    const {setSliceNum, canvas, setCrosshairs, zoomFactor, scaleZoomFactor, setZoomFactor}  = useGLCanvas(canvasSize.x, canvasSize.y, headers, data, plane);
     const onSliderChange = useCallback( (newValue) => {
         onSliceChange(newValue);
 
         setSliceNum(newValue);
 
     }, [setSliceNum]);
-    if (!headers || !data) {
-        return <View><Text>Loading..</Text></View>;
-    }
+
+    const gestures = useMemo( () => {
+        const pinch = Gesture.Pinch().onChange( (pinch) => {
+            console.log('pinch', pinch.scaleChange);
+            scaleZoomFactor(pinch.scaleChange);
+        })
+        .onBegin(onGestureStart)
+        .onEnd(onGestureEnd);
+        const pan = Gesture.Pan().onBegin( () => {
+            onGestureStart();
+            console.log('Pan begin event');
+        }).maxPointers(1)
+        .onChange( (pan) => {
+            if (zoomFactor == 1.0) {
+                console.log(pan);
+                // No zoom factor treat it as a tap.
+                const pos = calculateTouchPos(plane, headers, SliceNo, zoomFactor, canvasSize, pan.x, pan.y);
+                setPosition(pos.x, pos.y, pos.z);
+            } else {
+                const screenPlanes = getScreenPlanes(plane, headers);
+                console.log('pan change event while zoomed', pan);
+            }
+        }).onUpdate( () => {
+            console.log('pan update event');
+        }).onEnd( () => {
+            onGestureEnd();
+            console.log('pan end event');
+        });
+        const tap = Gesture.Tap().onBegin(onGestureStart).onEnd( (evt) => {
+            if (onGestureEnd) 
+                onGestureEnd();
+            // FIXME: Change coordinate while zoomed (needs zoom dependent math in calculateTouchPos.)
+            if (zoomFactor == 1.0) {
+
+                const pos = calculateTouchPos(plane, headers, SliceNo, zoomFactor, canvasSize, evt.x, evt.y);
+                console.log('pos', pos)
+                setPosition(pos.x, pos.y, pos.z);
+            }
+            console.log('Tap end', evt);
+        });
+        const longPress = Gesture.LongPress().onBegin(onGestureStart).
+        onEnd( () => {
+            setZoomFactor(1.0);
+            onGestureEnd();
+        });
+        return Gesture.Race(
+            pinch,
+            pan,
+            longPress,
+            tap,
+        );
+    });
     useEffect( () => {
         setCrosshairs(crosshairs);
     }, [crosshairs, setCrosshairs]);
+    if (!headers || !data) {
+        return <View><Text>Loading..</Text></View>;
+    }
 
     let sliderMax = 100;
     switch(plane) {
@@ -412,7 +541,7 @@ export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange
 
       <View style={{flex: 1, justifyContent: 'center', flexDirection: 'column', alignItems: 'center', margin: 20,}}>
          <Text>{label} (Size: {sliderMax})</Text>
-         {canvas}
+         <GestureDetector gesture={gestures}>{canvas}</GestureDetector>
          <SegmentSlider
            val={SliceNo}
            max={sliderMax}
