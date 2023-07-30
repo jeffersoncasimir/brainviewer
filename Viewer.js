@@ -1,8 +1,5 @@
 import React, {useState, useEffect} from 'react';
-import { Pressable, View, Text } from 'react-native';
-import { GLView } from 'expo-gl';
-import Expo2DContext from "expo-2d-context";
-import { SegmentSlider } from './SegmentSlider';
+import { Dimensions, View, Text } from 'react-native';
 import {PlaneViewer} from './PlaneViewer';
 
 
@@ -31,9 +28,18 @@ function preprocess(rawdata) {
   }
 }
 
-export function Viewer({rawData, headers, onGestureStart, onGestureEnd}) {
+export function Viewer({rawData, headers, onGestureStart, onGestureEnd, screenOrientation}) {
     const [data, setData] = useState(null);
     const [coord, setCoord] = useState({x: 0, y: 0, z: 0});
+    const [viewWidth, setViewWidth] = useState(0);
+
+    useEffect(() => {
+      setViewWidth(screenOrientation < 3
+        ? Dimensions.get('window').width * 0.85   // Portrait
+        : Dimensions.get('window').width * 0.3    // Landscape
+      );
+    }, [screenOrientation]);
+
     useEffect( () => {
         if (!rawData) {
             return;
@@ -63,7 +69,12 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd}) {
     // This was reached by trial and error with 1 sample file and
     // is not reliable
      return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center'}}>
+      <View style={{
+        display: 'flex',
+        // alignItems: 'center',
+        justifyContent: 'space-evenly',
+        flexDirection: screenOrientation < 3 ? 'column' : 'row',
+      }}>
         <PlaneViewer data={data} plane='z' headers={headers}
             SliceNo={coord.z}
             label="Sagittal"
@@ -78,6 +89,7 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd}) {
             crosshairs={ {x: coord.x, y: coord.y} }
             onGestureStart={onGestureStart}
             onGestureEnd={onGestureEnd}
+            viewWidth={viewWidth}
         />
         <PlaneViewer data={data} plane='x' headers={headers}
             SliceNo={coord.x}
@@ -93,7 +105,8 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd}) {
             crosshairs={ {x: coord.y, y: coord.z} }
             onGestureStart={onGestureStart}
             onGestureEnd={onGestureEnd}
-            />
+            viewWidth={viewWidth}
+        />
         <PlaneViewer data={data}
             headers={headers}
             onGestureStart={onGestureStart}
@@ -110,7 +123,8 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd}) {
                 }
             }
             crosshairs={ {x: coord.x, y: coord.z} }
-           />
+            viewWidth={viewWidth}
+        />
       </View>
     );
 }

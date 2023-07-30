@@ -1,11 +1,10 @@
 import React from 'react';
-import { View, Text, Dimensions } from 'react-native';
+import { View, Text } from 'react-native';
 import Slider from '@react-native-community/slider';
 
 export function SegmentSlider(props) {
   // Calculate the width based on the screen dimensions
-  const { width } = Dimensions.get('window');
-  const sliderWidth = width * 0.9; // 70% of screen width
+  const sliderWidth =  props.viewWidth * 1.1;
 
   const label = props.label ? <View><Text>{props.label}</Text></View> : null;
   return (

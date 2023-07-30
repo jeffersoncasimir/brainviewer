@@ -1,9 +1,8 @@
-import React, {useMemo, useRef, useState, useCallback, useEffect} from 'react';
-import { Gesture, GestureDetector} from 'react-native-gesture-handler';
-import { Pressable, View, Text, PanResponder } from 'react-native';
-import { GLView } from 'expo-gl';
-import Expo2DContext from "expo-2d-context";
-import { SegmentSlider } from './SegmentSlider';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
+import {Text, View} from 'react-native';
+import {GLView} from 'expo-gl';
+import {SegmentSlider} from './SegmentSlider';
 
 function getScreenPlanes(plane, headers) {
   switch (plane) {
@@ -35,9 +34,8 @@ function loadIntensityTexture(gl, headers, data) {
       gl.bindTexture(gl.TEXTURE_3D, texture);
 
       const values = new Uint8Array(data.floats.length);
-      for(i = 0; i < data.floats.length; i++) {
-        const val = ((data.floats[i] -data.min) / (data.max -data.min)) * 255;
-        values[i] = val;
+      for(let i = 0; i < data.floats.length; i++) {
+        values[i] = ((data.floats[i] - data.min) / (data.max - data.min)) * 255;
       }
 
       // Set the parameters so we can render any size image.
@@ -68,11 +66,12 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
     const [offsetPos, setOffsetPos] = useState({x: 0, y: 0});
     const [zoomUniform, setZoomUniform] = useState(null);
     const [viewOffsetUniform, setViewOffsetUniform] = useState(null);
+    const [pixelsPerUnit, setPixelsPerUnit] = useState(0);
     const draw = useCallback(() => {
         if (!gl) {
             console.warn('No gl in draw');
             return;
-        } 
+        }
         // We draw the 1 square which consists of 2 triangles
         // covering the whole viewport. The program set up
         // a_position in onContextCreate
@@ -80,7 +79,23 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         gl.flush();
         gl.endFrameEXP();
     }, [gl]);
-    const setZoomFactorCB = useCallback( (newZoom) => {
+
+    // Force re-render on viewWidth change
+    useEffect(() => {
+      if (!gl)
+        return;
+      gl.drawingBufferWidth = Math.ceil(viewWidth * pixelsPerUnit);
+      gl.drawingBufferHeight = Math.ceil(viewHeight * pixelsPerUnit);
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+      // TODO: Replace with better alternative
+      setTimeout(() => {
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        requestAnimationFrame(draw);
+        gl.endFrameEXP();
+      }, 100);
+    }, [viewWidth]);
+
+  const setZoomFactorCB = useCallback( (newZoom) => {
         if (!gl) {
             console.log('No gl for setZoomFactorCB');
             return;
@@ -129,7 +144,7 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
           gl.compileShader(shader);
           const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
           if (!success) {
-            msg = gl.getShaderInfoLog(shader);
+            const msg = gl.getShaderInfoLog(shader);
             gl.deleteShader(shader);
             throw new Error("Could not compile shader:" + msg);
           }
@@ -138,8 +153,8 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
 
         const linkProgram = (vertex, fragment) => {
           const program = gl.createProgram();
-          gl.attachShader(program, vert);
-          gl.attachShader(program, frag);
+          gl.attachShader(program, vertex);
+          gl.attachShader(program, fragment);
           gl.linkProgram(program);
           const success = gl.getProgramParameter(program, gl.LINK_STATUS);
           if (!success) {
@@ -151,8 +166,8 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         };
 
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        setPixelsPerUnit(gl.drawingBufferWidth / viewWidth);
         gl.clearColor(0, 1, 0, 1);
-
         // Create the vertex shader (position & size)
         const vert = compileShader(gl.VERTEX_SHADER, 
           `
@@ -342,7 +357,6 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
             0,
         );
 
-
         // Calculate display uniforms
         const spaceSizeUniformLocation = gl.getUniformLocation(program, "u_spacesize");
         if (spaceSizeUniformLocation) {
@@ -438,10 +452,14 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         gl.uniform2f(crosshairsUniform, crosshairs.x, crosshairs.y);
         draw();
     }, [gl, draw, crosshairsUniform]);
-    const canvas = useRef(<GLView collapsable={false} style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
-                onContextCreate={onContextCreate} />).current;
 
-    return {
+
+  const canvas = useMemo(() => {
+    return <GLView collapsable={false} style={{ width: viewWidth, height: viewHeight, borderWidth: 2, borderColor: 'green' }}
+                   onContextCreate={onContextCreate}/>;
+  }, [viewWidth]);
+
+  return {
         setSliceNum: setSliceNum,
         setCrosshairs: setCrosshairs,
         canvas: canvas,
@@ -486,15 +504,12 @@ function calculateTouchPos(plane, headers, sliceNo, zoomFactor, canvasSize, x, y
     }
 }
 
-export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange, crosshairs, setPosition, onGestureStart, onGestureEnd}) {
-    // FIXME: Width and height shouldn't be fixed values
-    const canvasSize = {x: 350, y: 400};
+export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange, crosshairs, setPosition, onGestureStart, onGestureEnd, viewWidth}) {
+    const canvasSize = {x: viewWidth, y: viewWidth * 8 / 7};
     const {setSliceNum, canvas, setCrosshairs, zoomFactor, scaleZoomFactor, setZoomFactor, panViewport, setViewOffset}  = useGLCanvas(canvasSize.x, canvasSize.y, headers, data, plane);
     const onSliderChange = useCallback( (newValue) => {
         onSliceChange(newValue);
-
         setSliceNum(newValue);
-
     }, [setSliceNum]);
 
     const gestures = useMemo( () => {
@@ -576,14 +591,19 @@ export function PlaneViewer({headers, data, plane, SliceNo, label, onSliceChange
       throw new Error("Invalid plane");
     }
     return (
-
-      <View style={{flex: 1, justifyContent: 'center', flexDirection: 'column', alignItems: 'center', margin: 20,}}>
+      <View style={{
+        display: 'flex',
+        justifyContent: 'center',
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}>
          <Text>{label} (Size: {sliderMax})</Text>
          <GestureDetector gesture={gestures}>{canvas}</GestureDetector>
          <SegmentSlider
            val={SliceNo}
            max={sliderMax}
            onSliderChange={onSliderChange}
+           viewWidth={viewWidth}
          />
       </View>
     );

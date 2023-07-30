@@ -7,6 +7,7 @@ import {hdf5Loader} from './MincLoader';
 import {Viewer} from './Viewer';
 import {Login} from './Login';
 import * as SecureStore from 'expo-secure-store';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 async function getValueFor(key) {
   return await SecureStore.getItemAsync(key);
@@ -18,6 +19,24 @@ export default function App() {
   const [rawData, setRawData] = useState(null);
   const [headerData, setHeaderData] = useState(null);
   const [shouldScroll, setShouldScroll] = useState(true);
+  const [screenOrientation, setScreenOrientation] = useState(0);
+
+  useEffect(() => {
+    checkOrientation();
+    const subscription = ScreenOrientation.addOrientationChangeListener(
+      handleOrientationChange
+    );
+    return () => {
+      ScreenOrientation.removeOrientationChangeListeners(subscription);
+    };
+  }, []);
+  const checkOrientation = async () => {
+    const orientation = await ScreenOrientation.getOrientationAsync();
+    setScreenOrientation(orientation);
+  };
+  const handleOrientationChange = (o) => {
+    setScreenOrientation(o.orientationInfo.orientation);
+  };
 
   useEffect(() => {
     if (token)
@@ -64,11 +83,7 @@ export default function App() {
   return (
     // ScrollView 
     <ScrollView scrollEnabled={shouldScroll} style={styles.container}>
-      <GestureHandlerRootView styles={{flex: 1}}>
-      <Text></Text>
-      <Text> </Text>
-      <Text> </Text>
-      <Text> </Text>
+      <GestureHandlerRootView>
       <View >
         <Text style={{
           textAlign: "center", fontSize: 25
@@ -83,14 +98,17 @@ export default function App() {
         By Dave MacFarlane, Camille Beaudoin, and Jefferson Casimir
         </Text>
       </View>
-      <Text> </Text>
-      <Viewer rawData={rawData} headers={headerData} 
+      <Viewer
+        rawData={rawData}
+        headers={headerData}
         onGestureStart={ () => setShouldScroll(false) }
         onGestureEnd={ () => setShouldScroll(true) }
+        screenOrientation={screenOrientation}
       />
+      <View style={{
+        paddingBottom: 40,
+      }}/>
       <StatusBar style="auto" />
-      <Text></Text>
-      <Text></Text>
       </GestureHandlerRootView>
     </ScrollView>
   );
@@ -99,7 +117,8 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    display: 'flex',
     backgroundColor: '#fff',
+    marginTop: 40,
   },
 });
