@@ -42,7 +42,9 @@ export default function Login() {
                         appContext.setToken(responseJSON.token);
                         router.back();
                     });
+                    return true;
                 }
+                alert('Unable to authenticate with the credentials provided.');
             });
         })
         .catch((err) => {
