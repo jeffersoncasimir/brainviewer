@@ -1,7 +1,7 @@
 {
   "name": "brainviewer",
   "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -21,7 +21,8 @@
     "react-native": "0.71.8",
     "three": "^0.154.0",
     "react-native-gesture-handler": "~2.9.0",
-    "expo-screen-orientation": "~5.1.1"
+    "expo-screen-orientation": "~5.1.1",
+    "expo-router": "^1.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
