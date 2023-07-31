@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {StatusBar} from 'expo-status-bar';
-import {StyleSheet, View, Text, ScrollView} from 'react-native';
+import {ScrollView, StyleSheet, Text, View} from 'react-native';
 import React, {useContext, useEffect, useState} from 'react';
 import {hdf5Loader} from "../MincLoader";
 import * as SecureStore from "expo-secure-store";
@@ -17,44 +17,69 @@ export default function ViewerContainer() {
   const params = useLocalSearchParams();
   const { isLorisRequest } = params;
 
+  const loadHDF5 = (data) => {
+    return new Promise((resolve, reject) => {
+      const result = hdf5Loader(data);
+      resolve(result);
+      reject("Failed to load data");
+    });
+  }
+
+  const fetchData = (url) => {
+    return new Promise((resolve, reject) => {
+      // Fetch in react native does not support ArrayBuffer
+      const req = new XMLHttpRequest();
+      req.open('GET', url, true);
+      req.responseType = "arraybuffer";
+      req.onerror = (evt) => {
+        reject(`Failed to load URL: ${appContext.fileURL}.`);
+      }
+      req.onload = (evt) => {
+        if (req.status < 200 || req.status >= 300) {
+          console.log('response status', req.status);
+          if (isLorisRequest && req.status !== 404) {
+            SecureStore.deleteItemAsync('loris_token', null);
+            SecureStore.deleteItemAsync('loris_url', null);
+            appContext.setApiURL(null);
+            appContext.setToken(null);
+            reject('Invalid token or request. Please log in again.');
+            return;
+          }
+          reject('File not found.');
+          return;
+        }
+        resolve(req.response);
+      };
+
+      if (isLorisRequest) {
+        req.setRequestHeader('Authorization', 'Bearer ' + appContext.token);
+      }
+      req.send(null);
+    });
+  }
+
   useEffect(() => {
     if (!appContext.fileURL || (isLorisRequest && !appContext.token)) {
         router.back();
         return;
     }
-    // Fetch in react native does not support ArrayBuffer
-    const req = new XMLHttpRequest();
-    req.open('GET', appContext.fileURL, true);
-    req.responseType = "arraybuffer";
-    req.onerror = (evt) => {
-      alert(`Failed to load URL: ${appContext.fileURL}.`);
-      router.back();
-    }
-    req.onload = (evt) => {
-      if (req.status < 200 || req.status >= 300) {
-        console.log('response status', req.status);
-        if (isLorisRequest && req.status !== 404) {
-          SecureStore.deleteItemAsync('loris_token', null);
-          SecureStore.deleteItemAsync('loris_url', null);
-          appContext.setApiURL(null);
-          appContext.setToken(null);
-          alert('Invalid token or request. Please log in again.');
-          router.back();
-          return;
-        }
-        alert('File not found.');
+    
+    fetchData(appContext.fileURL)
+      .then((data) => {
+        loadHDF5(data)
+          .then((result) => {
+            setRawData(result.raw_data);
+            setHeaderData(JSON.parse(result.header_text));
+          })
+          .catch((reason) => {
+            alert(reason);
+            router.back();
+          });
+      })
+      .catch((reason) => {
+        alert(reason);
         router.back();
-      }
-
-      const result = hdf5Loader(req.response);
-      setRawData(result.raw_data);
-      setHeaderData(JSON.parse(result.header_text));
-    };
-
-    if (isLorisRequest) {
-      req.setRequestHeader('Authorization', 'Bearer ' + appContext.token);
-    }
-    req.send(null);
+      });
   }, []);
 
 

@@ -92,7 +92,7 @@ export default function Index() {
         </View>
         <Button
           title="Select Local File"
-          onPress={() => console.log('Not yet implemented')}
+          onPress={() => alert('Not yet implemented')}
         />
       </View>
     </View>
