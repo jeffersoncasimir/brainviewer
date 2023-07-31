@@ -8,7 +8,7 @@ import {
     TouchableOpacity,
 } from "react-native";
 import * as SecureStore from 'expo-secure-store';
-import { useRouter } from "expo-router";
+import {useRouter} from "expo-router";
 import {AppContext} from "./_layout";
 
 async function save(key, value) {
@@ -40,7 +40,7 @@ export default function Login() {
                     console.log('response ok');
                     save('loris_token', responseJSON.token).then(() => {
                         appContext.setToken(responseJSON.token);
-                        router.replace("/");
+                        router.back();
                     });
                 }
             });
