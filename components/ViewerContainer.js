@@ -7,39 +7,53 @@ import {hdf5Loader} from "../MincLoader";
 import * as SecureStore from "expo-secure-store";
 import {AppContext} from "../app/_layout";
 import {Viewer} from "./Viewer";
-import {useRouter} from "expo-router";
+import {useLocalSearchParams, useRouter} from "expo-router";
 
 export default function ViewerContainer() {
   const [rawData, setRawData] = useState(null);
   const [headerData, setHeaderData] = useState(null);
   const appContext = useContext(AppContext);
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const { isLorisRequest } = params;
 
   useEffect(() => {
-    // Get file from LORIS
-    if (!appContext.token) {
-      return;
+    if (!appContext.fileURL || (isLorisRequest && !appContext.token)) {
+        router.back();
+        return;
     }
-
-    //    Fetch in react native does not support ArrayBuffer
+    // Fetch in react native does not support ArrayBuffer
     const req = new XMLHttpRequest();
-    req.open('GET', 'https://demo-25-0.loris.ca/api/v0.0.3/candidates/587630/V1/images/demo_587630_V1_t2_001_t2-defaced_001.mnc', true);
+    req.open('GET', appContext.fileURL, true);
     req.responseType = "arraybuffer";
-    req.setRequestHeader('Authorization', 'Bearer ' + appContext.token);
+    req.onerror = (evt) => {
+      alert(`Failed to load URL: ${appContext.fileURL}.`);
+      router.back();
+    }
     req.onload = (evt) => {
       if (req.status < 200 || req.status >= 300) {
         console.log('response status', req.status);
-        SecureStore.deleteItemAsync('loris_token', null);
-        appContext.setToken(null);
-        alert('Invalid Token. Please log in again.');
-        router.replace('/');
-        return;
+        if (isLorisRequest && req.status !== 404) {
+          SecureStore.deleteItemAsync('loris_token', null);
+          SecureStore.deleteItemAsync('loris_url', null);
+          appContext.setApiURL(null);
+          appContext.setToken(null);
+          alert('Invalid token or request. Please log in again.');
+          router.back();
+          return;
+        }
+        alert('File not found.');
+        router.back();
       }
 
       const result = hdf5Loader(req.response);
       setRawData(result.raw_data);
       setHeaderData(JSON.parse(result.header_text));
     };
+
+    if (isLorisRequest) {
+      req.setRequestHeader('Authorization', 'Bearer ' + appContext.token);
+    }
     req.send(null);
   }, []);
 
@@ -50,23 +64,23 @@ export default function ViewerContainer() {
       <GestureHandlerRootView>
       <View >
         <Text style={{
-          textAlign: "center", fontSize: 25
+          textAlign: "center", fontSize: 20, padding: 20
         }}>
-          {`Viewing: _filename_`}
+          {`File: ${appContext.fileURL.split('/').slice(-1)}`}
         </Text>
       </View>
       <Viewer
         rawData={rawData}
         headers={headerData}
-        onGestureStart={ () =>  appContext.setShouldScroll(false) }
-        onGestureEnd={ () =>  appContext.setShouldScroll(true) }
+        onGestureStart={() => appContext.setShouldScroll(false)}
+        onGestureEnd={() => appContext.setShouldScroll(true)}
         screenOrientation={appContext.screenOrientation}
       />
       <View style={{
         paddingBottom: 40,
       }}/>
-      <StatusBar style="auto" />
       </GestureHandlerRootView>
+      <StatusBar style="auto" />
     </ScrollView>
   );
 }

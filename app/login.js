@@ -18,13 +18,14 @@ async function save(key, value) {
 export default function Login() {
     const appContext = useContext(AppContext);
     const router = useRouter();
-
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-
+    const [lorisURL, setLorisURL] = useState('');
 
     const handleLogin = () => {
-        fetch('https://demo-25-0.loris.ca/api/v0.0.3/login/', {
+        const apiURL = lorisURL ? lorisURL : appContext.defaultAPI;
+
+        fetch(`${apiURL}/login`, {
             method: 'POST',
             body: JSON.stringify({
                 username : username,
@@ -39,8 +40,12 @@ export default function Login() {
                 if (responseJSON.token) {
                     console.log('response ok');
                     save('loris_token', responseJSON.token).then(() => {
-                        appContext.setToken(responseJSON.token);
-                        router.back();
+                        save('loris_url', apiURL)
+                          .then(() => {
+                            appContext.setApiURL(apiURL);
+                            appContext.setToken(responseJSON.token);
+                            router.back();
+                        });
                     });
                     return true;
                 }
@@ -54,12 +59,24 @@ export default function Login() {
 
     return (
         <View style={styles.container}>
+            <Text style={styles.titleText}>API URL</Text>
+            <View style={styles.urlView}>
+                <TextInput
+                  style={styles.TextInput}
+                  placeholder={appContext.defaultAPI}
+                  textContentType='URL'
+                  autoComplete='off'
+                  placeholderTextColor="#003f5c"
+                  onChangeText={(url) => setLorisURL(url)}
+                />
+            </View>
             <Text style={styles.titleText}>Enter your credentials</Text>
-            <StatusBar style="auto"/>
             <View style={styles.inputView}>
                 <TextInput
                     style={styles.TextInput}
                     placeholder="Email."
+                    textContentType='username'
+                    autoComplete='username'
                     placeholderTextColor="#003f5c"
                     onChangeText={(username) => setUsername(username)}
                 />
@@ -68,6 +85,8 @@ export default function Login() {
                 <TextInput
                     style={styles.TextInput}
                     placeholder="Password."
+                    textContentType='password'
+                    autoComplete='password'
                     placeholderTextColor="#003f5c"
                     secureTextEntry={true}
                     onChangeText={(password) => setPassword(password)}
@@ -76,6 +95,7 @@ export default function Login() {
             <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
                 <Text style={styles.loginText}>LOGIN</Text>
             </TouchableOpacity>
+            <StatusBar style="auto"/>
         </View>
     );
 
@@ -93,6 +113,14 @@ const styles = StyleSheet.create({
     },
     image: {
         marginBottom: 40,
+    },
+    urlView: {
+        backgroundColor: "#fa9d6c",
+        borderRadius: 30,
+        width: "70%",
+        height: 45,
+        marginBottom: 20,
+        alignItems: "center",
     },
     inputView: {
         backgroundColor: "#1ac1ec",

@@ -15,8 +15,12 @@ async function getValueFor(key) {
 
 export default function RootLayout() {
   const [token, setToken] = useState(null);
+  const [apiURL, setApiURL] = useState(null);
   const [screenOrientation, setScreenOrientation] = useState(0);
   const [shouldScroll, setShouldScroll] = useState(true);
+  const [fileURL, setFileURL] = useState(null);
+
+  const DEFAULT_API_URL = 'https://demo-25-0.loris.ca/api/v0.0.3';
 
   useEffect(() => {
     if (token)
@@ -24,6 +28,11 @@ export default function RootLayout() {
     getValueFor('loris_token').then((lorisToken) => {
       if (lorisToken) {
         setToken(lorisToken);
+        getValueFor('loris_url').then((lorisURL) => {
+          if (lorisURL) {
+            setApiURL(lorisURL);
+          }
+        });
       }
     });
   }, [token])
@@ -52,8 +61,13 @@ export default function RootLayout() {
       screenOrientation: screenOrientation,
       token: token,
       setToken: setToken,
+      apiURL: apiURL,
+      setApiURL: setApiURL,
       shouldScroll: shouldScroll,
       setShouldScroll: setShouldScroll,
+      fileURL: fileURL,
+      setFileURL: setFileURL,
+      defaultAPI: DEFAULT_API_URL,
     }}>
       <Stack screenOptions={{
         headerTintColor: "#2f7df3",
