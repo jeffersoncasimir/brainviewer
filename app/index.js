@@ -6,14 +6,15 @@ import {AppContext} from "./_layout";
 
 export default function Index() {
   const [fromURL, setFromURL] = useState('');
+
   const appContext = useContext(AppContext);
   const router = useRouter();
 
   const loadFromURL = (url, lorisAPI = false) => {
-    appContext.setFileURL(url);
     router.push({
       pathname: 'viewer',
       params: {
+        url: url,
         isLorisRequest: lorisAPI
       }
     });
@@ -40,24 +41,22 @@ export default function Index() {
                 <Text>LORIS status: Logged in</Text>
                 <Text selectable={true}>URL: {appContext.apiURL}</Text>
               </View>
-              <Button
-                title="View Demo"
-                onPress={() =>
-                  loadFromURL(
-                    `${appContext.apiURL}/candidates/587630/V1/images/demo_587630_V1_t2_001_t2-defaced_001.mnc`,
-                  true
-                  )
-                }
-              />
-              <Button
-                title="LORIS Logout"
-                onPress={() => {
-                  SecureStore.deleteItemAsync('loris_token', null);
-                  SecureStore.deleteItemAsync('loris_url', null);
-                  appContext.setApiURL(null);
-                  appContext.setToken(null);
-                }}
-              />
+              <View style={{ display: 'flex', width: '75%', flexDirection: 'row', justifyContent: 'space-evenly' }}>
+                <Button
+                  title="View Projects"
+                  onPress={() => router.push('projects')
+                  }
+                />
+                <Button
+                  title="LORIS Logout"
+                  onPress={() => {
+                    SecureStore.deleteItemAsync('loris_token', null);
+                    SecureStore.deleteItemAsync('loris_url', null);
+                    appContext.setApiURL(null);
+                    appContext.setToken(null);
+                  }}
+                />
+              </View>
             </>
           )
           : (

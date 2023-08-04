@@ -38,7 +38,6 @@ export default function Login() {
         .then((response) => {
            response.json().then((responseJSON) => {
                 if (responseJSON.token) {
-                    console.log('response ok');
                     save('loris_token', responseJSON.token).then(() => {
                         save('loris_url', apiURL)
                           .then(() => {
@@ -53,7 +52,7 @@ export default function Login() {
             });
         })
         .catch((err) => {
-            console.log(err.message);
+            console.error(err.message);
         });
     }
 

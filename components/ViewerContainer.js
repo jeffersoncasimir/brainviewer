@@ -15,7 +15,7 @@ export default function ViewerContainer() {
   const appContext = useContext(AppContext);
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { isLorisRequest } = params;
+  const { url, isLorisRequest } = params;
 
   const loadHDF5 = (data) => {
     return new Promise((resolve, reject) => {
@@ -25,14 +25,14 @@ export default function ViewerContainer() {
     });
   }
 
-  const fetchData = (url) => {
+  const fetchData = () => {
     return new Promise((resolve, reject) => {
       // Fetch in react native does not support ArrayBuffer
       const req = new XMLHttpRequest();
-      req.open('GET', url, true);
+      req.open('GET', (isLorisRequest ? appContext.apiURL : '') + url);
       req.responseType = "arraybuffer";
       req.onerror = (evt) => {
-        reject(`Failed to load URL: ${appContext.fileURL}.`);
+        reject(`Failed to load URL: ${url}`);
       }
       req.onload = (evt) => {
         if (req.status < 200 || req.status >= 300) {
@@ -59,12 +59,12 @@ export default function ViewerContainer() {
   }
 
   useEffect(() => {
-    if (!appContext.fileURL || (isLorisRequest && !appContext.token)) {
+    if (!url || (isLorisRequest && !appContext.token)) {
         router.back();
         return;
     }
     
-    fetchData(appContext.fileURL)
+    fetchData()
       .then((data) => {
         loadHDF5(data)
           .then((result) => {
@@ -91,7 +91,7 @@ export default function ViewerContainer() {
         <Text style={{
           textAlign: "center", fontSize: 20, padding: 20
         }}>
-          {`File: ${appContext.fileURL.split('/').slice(-1)}`}
+          {`File: ${url.split('/').slice(-1)}`}
         </Text>
       </View>
       <Viewer

@@ -18,8 +18,6 @@ export default function RootLayout() {
   const [apiURL, setApiURL] = useState(null);
   const [screenOrientation, setScreenOrientation] = useState(0);
   const [shouldScroll, setShouldScroll] = useState(true);
-  const [fileURL, setFileURL] = useState(null);
-
   const DEFAULT_API_URL = 'https://demo-25-0.loris.ca/api/v0.0.3';
 
   useEffect(() => {
@@ -35,8 +33,7 @@ export default function RootLayout() {
         });
       }
     });
-  }, [token])
-
+  }, [token]);
 
   useEffect(() => {
     checkOrientation();
@@ -65,8 +62,6 @@ export default function RootLayout() {
       setApiURL: setApiURL,
       shouldScroll: shouldScroll,
       setShouldScroll: setShouldScroll,
-      fileURL: fileURL,
-      setFileURL: setFileURL,
       defaultAPI: DEFAULT_API_URL,
     }}>
       <Stack screenOptions={{
@@ -80,6 +75,12 @@ export default function RootLayout() {
         }}/>
         <Stack.Screen name="login" options={{
           title: 'BrainViewer - LORIS login'
+        }}/>
+        <Stack.Screen name="projects" options={{
+          title: 'BrainViewer - LORIS Projects'
+        }}/>
+        <Stack.Screen name="images" options={{
+          title: 'BrainViewer - Project Images'
         }}/>
         <Stack.Screen name="viewer" options={{
           title: 'BrainViewer - Image Viewer'
