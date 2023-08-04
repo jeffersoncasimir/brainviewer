@@ -25,6 +25,17 @@ export default function Login() {
     const handleLogin = () => {
         const apiURL = lorisURL ? lorisURL : appContext.defaultAPI;
 
+        // const token = '9gp44l541cq47gjl15js4flue2';
+        // save('loris_token', token).then(() => {
+        //     appContext.setToken(token);
+        //     save('loris_url', 'https://eegnet-dev.loris.ca').then(() => {
+        //         appContext.setURL('https://eegnet-dev.loris.ca');
+        //         alert('done');
+        //     });
+        // });
+        // console.log('done');
+        // return;
+
         fetch(`${apiURL}/login`, {
             method: 'POST',
             body: JSON.stringify({
@@ -115,7 +126,7 @@ const styles = StyleSheet.create({
         marginBottom: 40,
     },
     urlView: {
-        backgroundColor: "#fa9d6c",
+        backgroundColor: "#1ac1ec",
         borderRadius: 30,
         width: "70%",
         height: 45,

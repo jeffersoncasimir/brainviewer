@@ -5,6 +5,7 @@ import {GLView} from 'expo-gl';
 import {SegmentSlider} from './SegmentSlider';
 
 function getScreenPlanes(plane, headers) {
+  console.log('getting planes');
   switch (plane) {
   case 'x':
     return {
@@ -32,6 +33,7 @@ function loadIntensityTexture(gl, headers, data) {
       const zsize = headers.zspace.space_length;
       const texture = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_3D, texture);
+      console.log('loading texture');
 
       const values = new Uint8Array(data.floats.length);
       for(let i = 0; i < data.floats.length; i++) {
@@ -135,9 +137,6 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
     const [sliceNumUniform, setSliceNumUniform] = useState(null);
     const [crosshairsUniform, setCrosshairsUniform] = useState(null);
     const onContextCreate = useCallback( (gl) => {
-        console.log('set gl')
-        setGl(gl);
-
         const compileShader = (type, src) => {
           const shader = gl.createShader(type);
           gl.shaderSource(shader, src);
@@ -157,6 +156,7 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
           gl.attachShader(program, fragment);
           gl.linkProgram(program);
           const success = gl.getProgramParameter(program, gl.LINK_STATUS);
+          console.log(`success: ${success}`);
           if (!success) {
             const msg = gl.getProgramInfoLog(program);
             gl.deleteProgram(program);
@@ -165,6 +165,7 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
           return program;
         };
 
+        console.log('setting vp');
         gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
         setPixelsPerUnit(gl.drawingBufferWidth / viewWidth);
         gl.clearColor(0, 1, 0, 1);
@@ -327,109 +328,136 @@ function useGLCanvas(viewWidth, viewHeight, headers, data, plane) {
         `
         );
 
+      console.log('linking');
+      try {
         const program = linkProgram(vert, frag);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
+        try {
+          console.log(program);
+        } catch (e) {
+          console.error(e);
+        }
+
+
         const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
         const positionBuffer = gl.createBuffer();
+        console.log(`pre-bind: ${plane}`);
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        console.log(`post-bind`);
         const {screenX, screenY} = getScreenPlanes(plane, headers);
+        console.log('headers:');
+        console.log(headers);
         console.log('Screen X/Y:', screenX, screenY);
+
         // FIXME: These are plane dependent. Switch on this.props.plane
         const positions = [
-            0, 0,
-            0, screenY,
-            screenX, 0,
+          0, 0,
+          0, screenY,
+          screenX, 0,
 
-            screenX, 0,
-            screenX, screenY,
-            0, screenY,
+          screenX, 0,
+          screenX, screenY,
+          0, screenY,
         ];
+        console.log('positions');
+        console.log(positions);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
         gl.useProgram(program);
         gl.enableVertexAttribArray(positionAttributeLocation);
         gl.vertexAttribPointer(
-            positionAttributeLocation,
-            2,
-            gl.FLOAT,
-            false,
-            0,
-            0,
+          positionAttributeLocation,
+          2,
+          gl.FLOAT,
+          false,
+          0,
+          0,
         );
-
+        console.log('f1');
         // Calculate display uniforms
         const spaceSizeUniformLocation = gl.getUniformLocation(program, "u_spacesize");
         if (spaceSizeUniformLocation) {
-            // FIXME: Determine if these should pivot around the plane we're looking at.
-            gl.uniform3f(
-                spaceSizeUniformLocation,
-                headers.xspace.space_length,
-                headers.yspace.space_length,
-                headers.zspace.space_length,
-            );
-        } 
+          // FIXME: Determine if these should pivot around the plane we're looking at.
+          gl.uniform3f(
+            spaceSizeUniformLocation,
+            headers.xspace.space_length,
+            headers.yspace.space_length,
+            headers.zspace.space_length,
+          );
+        }
         const sliceNoUniformLocation = gl.getUniformLocation(program, "u_sliceno");
         if (sliceNoUniformLocation) {
-            setSliceNumUniform(sliceNoUniformLocation);
-            // FIXME: Use the middle slice of the plane we're looking at.
-            gl.uniform1i(
-                sliceNoUniformLocation,
-                50,
-            );
+          setSliceNumUniform(sliceNoUniformLocation);
+          // FIXME: Use the middle slice of the plane we're looking at.
+          gl.uniform1i(
+            sliceNoUniformLocation,
+            50,
+          );
         }
         const zoomUniformLocation = gl.getUniformLocation(program, "u_zoom");
         if (zoomUniformLocation) {
-            console.log('setting zoom uniform', zoomUniformLocation);
-            setZoomUniform(zoomUniformLocation);
-            gl.uniform1f(zoomUniformLocation, 1.0);
+          console.log('setting zoom uniform', zoomUniformLocation);
+          setZoomUniform(zoomUniformLocation);
+          gl.uniform1f(zoomUniformLocation, 1.0);
         } else {
-            console.log('No u_zoom');
+          console.log('No u_zoom');
         }
 
         const viewOffsetUniformLocation = gl.getUniformLocation(program, "u_viewoffset");
         if (viewOffsetUniformLocation) {
-            console.log('setting offset uniform', viewOffsetUniformLocation);
-            setViewOffsetUniform(viewOffsetUniformLocation);
-            gl.uniform2f(viewOffsetUniformLocation, 0.0, 0.0);
+          console.log('setting offset uniform', viewOffsetUniformLocation);
+          setViewOffsetUniform(viewOffsetUniformLocation);
+          gl.uniform2f(viewOffsetUniformLocation, 0.0, 0.0);
         } else {
-            console.log('No u_viewoffset');
+          console.log('No u_viewoffset');
         }
-
+        console.log('f2');
         // Set the resolution for the x and y axis of the
         // screen based on the plane that we're rendering.
         const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
         if (resolutionUniformLocation) {
-            gl.uniform2f(
-              resolutionUniformLocation,
-              screenX,
-              screenY,
-            );
+          gl.uniform2f(
+            resolutionUniformLocation,
+            screenX,
+            screenY,
+          );
         }
         const crosshairsUniformLocation = gl.getUniformLocation(program, "u_crosshairs");
         if (crosshairsUniformLocation) {
-            setCrosshairsUniform(crosshairsUniformLocation)
+          setCrosshairsUniform(crosshairsUniformLocation)
         }
-
+        console.log('f3');
         loadIntensityTexture(gl, headers, data);
 
+        console.log('post texture;);');
         const planeLocation = gl.getUniformLocation(program, "u_plane");
-        if (planeLocation) {
-            switch(plane) {
-            case 'x':
-                gl.uniform1i(planeLocation, 1);
-                break;
-            case 'y':
-                gl.uniform1i(planeLocation, 2);
-                break;
-            case 'z':
-                gl.uniform1i(planeLocation, 3);
-                break;
-            default:
-                throw new Error('Invalid plane');
-            }
-        }
 
+        console.log('set plane location');
+        if (planeLocation) {
+          switch(plane) {
+            case 'x':
+              gl.uniform1i(planeLocation, 1);
+              break;
+            case 'y':
+              gl.uniform1i(planeLocation, 2);
+              break;
+            case 'z':
+              gl.uniform1i(planeLocation, 3);
+              break;
+            default:
+              console.log('invalid plane');
+              throw new Error('Invalid plane');
+          }
+        }
+        console.log('set gl')
+        setGl(gl);
+        console.log('f4');
         draw();
+      } catch (e) {
+        console.log('error');
+        console.log(e);
+      }
+
     }, [headers, data, plane, draw]);
     const setSliceNum = useCallback( (newValue) => {
         if (gl && sliceNumUniform) {

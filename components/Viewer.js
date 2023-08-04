@@ -4,6 +4,7 @@ import {PlaneViewer} from './PlaneViewer';
 
 
 function preprocess(rawdata) {
+  console.log('preprocess start');
   const dv = new DataView(rawdata);
   const floatArray = new Float32Array(rawdata.byteLength / 4);
   let min = null;
@@ -28,7 +29,7 @@ function preprocess(rawdata) {
   }
 }
 
-export function Viewer({rawData, headers, onGestureStart, onGestureEnd, screenOrientation}) {
+export function Viewer({rawData, headers, onGestureStart, onGestureEnd, screenOrientation, loadingText}) {
     const [data, setData] = useState(null);
     const [coord, setCoord] = useState({x: 0, y: 0, z: 0});
     const [viewWidth, setViewWidth] = useState(0);
@@ -57,12 +58,19 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd, screenOr
         });
     }, [headers]);
 
-    if(!headers) {
-      return <View><Text>Loading headers..</Text></View>;
-    }
-    if (!rawData){
-      return <View><Text>Loading raw data..</Text></View>
-    }
+    useEffect(() => {
+      // TODO: Fix UI freeze
+      console.log(`Loading text should be updating to: ${loadingText}`);
+    }, [loadingText]);
+
+    // if(!headers) {
+    //   return <View><Text>Loading headers..</Text></View>;
+    // }
+    // if (!rawData){
+    //   return <View><Text>Loading raw data..</Text></View>
+    // }
+    if (!headers || !rawData)
+      return <View><Text>{loadingText}</Text></View>
 
     // These have the fixed plane be z, x, y so that they're the
     // same direction brainbrowser shows it in the LORIS imaging browser
@@ -91,22 +99,7 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd, screenOr
             onGestureEnd={onGestureEnd}
             viewWidth={viewWidth}
         />
-        <PlaneViewer data={data} plane='x' headers={headers}
-            SliceNo={coord.x}
-            label="Coronal"
-            onSliceChange={
-                (value) => {
-                    setCoord({...coord, x: value})
-                }
-            }
-            setPosition={ (x, y, z) => {
-                setCoord({x: x, y: y, z: z});
-            }}
-            crosshairs={ {x: coord.y, y: coord.z} }
-            onGestureStart={onGestureStart}
-            onGestureEnd={onGestureEnd}
-            viewWidth={viewWidth}
-        />
+
         <PlaneViewer data={data}
             headers={headers}
             onGestureStart={onGestureStart}
@@ -124,6 +117,22 @@ export function Viewer({rawData, headers, onGestureStart, onGestureEnd, screenOr
             }
             crosshairs={ {x: coord.x, y: coord.z} }
             viewWidth={viewWidth}
+        />
+        <PlaneViewer data={data} plane='x' headers={headers}
+                     SliceNo={coord.x}
+                     label="Coronal"
+                     onSliceChange={
+                       (value) => {
+                         setCoord({...coord, x: value})
+                       }
+                     }
+                     setPosition={ (x, y, z) => {
+                       setCoord({x: x, y: y, z: z});
+                     }}
+                     crosshairs={ {x: coord.y, y: coord.z} }
+                     onGestureStart={onGestureStart}
+                     onGestureEnd={onGestureEnd}
+                     viewWidth={viewWidth}
         />
       </View>
     );

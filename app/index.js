@@ -14,7 +14,22 @@ export default function Index() {
     router.push({
       pathname: 'viewer',
       params: {
-        isLorisRequest: lorisAPI
+        isLorisRequest: lorisAPI,
+        isBrainWebRequest: false,
+        brainWebBody: null,
+      }
+    });
+  }
+
+  const loadFromBrainWeb = (body) => {
+    console.log(`body: ${body}`);
+    appContext.setFileURL('https://brainweb.bic.mni.mcgill.ca/cgi/brainweb1');
+    router.push({
+      pathname: 'viewer',
+      params: {
+        isLorisRequest: false,
+        isBrainWebRequest: true,
+        brainWebBody: body.replaceAll('&', '@'),
       }
     });
   }
@@ -40,24 +55,26 @@ export default function Index() {
                 <Text>LORIS status: Logged in</Text>
                 <Text selectable={true}>URL: {appContext.apiURL}</Text>
               </View>
-              <Button
-                title="View Demo"
-                onPress={() =>
-                  loadFromURL(
-                    `${appContext.apiURL}/candidates/587630/V1/images/demo_587630_V1_t2_001_t2-defaced_001.mnc`,
-                  true
-                  )
-                }
-              />
-              <Button
-                title="LORIS Logout"
-                onPress={() => {
-                  SecureStore.deleteItemAsync('loris_token', null);
-                  SecureStore.deleteItemAsync('loris_url', null);
-                  appContext.setApiURL(null);
-                  appContext.setToken(null);
-                }}
-              />
+              <View style={{ display: 'flex', width: '75%', flexDirection: 'row', justifyContent: 'space-evenly' }}>
+                <Button
+                  title="View Demo"
+                  onPress={() =>
+                    loadFromURL(
+                      `${appContext.apiURL}/candidates/587630/V1/images/demo_587630_V1_t2_001_t2-defaced_001.mnc`,
+                    true
+                    )
+                  }
+                />
+                <Button
+                  title="LORIS Logout"
+                  onPress={() => {
+                    SecureStore.deleteItemAsync('loris_token', null);
+                    SecureStore.deleteItemAsync('loris_url', null);
+                    appContext.setApiURL(null);
+                    appContext.setToken(null);
+                  }}
+                />
+              </View>
             </>
           )
           : (
@@ -90,6 +107,10 @@ export default function Index() {
             disabled={!fromURL}
           />
         </View>
+        <Button
+          title="Get from BrainWeb"
+          onPress={() => loadFromBrainWeb('do_download_alias=subject04_crisp&format_value=minc&zip_value=none&who_name=&who_institution=&who_email=&download_for_real=%5BStart+download%21%5D')}
+        />
         <Button
           title="Select Local File"
           onPress={() => alert('Not yet implemented')}
